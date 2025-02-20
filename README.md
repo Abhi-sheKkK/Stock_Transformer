@@ -113,7 +113,16 @@ pip install -r requirements.txt
 
 ---
 ## 📈Predictions
-- 
+  - **Crude_oil**
+  ![Crude oil](predictions/crude_oil/actual_vs_predicted.jpg)
+  - **Tata_motors**
+    ![Tata_Motors](predictions/tata_motors/predicted_vs_actual.png)
+  - **Tesla**
+    ![Tesla](predictions/tesla/predicted_vs_actual.png)
+  - **Apple**
+    ![Apple](predictions/Apple/actual_vs_predicted_price.png)
+
+ 
 ## 🛠 Future Enhancements
 
 1. **Hybrid Model Integration**
@@ -160,17 +169,7 @@ pip install -r requirements.txt
 
 #### Solutions:
 - Huber loss for robustness.
----
 
-### 4. Feature Engineering
-#### Challenges:
-- Raw price data insufficient for accurate predictions.
-- Market regime changes affected model performance.
-- Difficulty in capturing market sentiment.
-- Noisy technical indicators.
-
-#### Solutions:
-  - Technical indicators (RSI, MACD, EMA).
 
 ---
 
