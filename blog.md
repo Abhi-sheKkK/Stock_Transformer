@@ -43,7 +43,7 @@ Many stocks start with very low prices and gradually increase over time. This cr
 
 Below is a comparison of how **Word2Vec + Positional Encoding** works in NLP versus **Time2Vec + Stock Prices** in time series:
 
-![comparison between word2Vec and stock data distribution](https://github.com/Abhi-sheKkK/Stock_Transformer/blob/main/predictions/other_images/skewed_price_data.png)
+![comparison between word2Vec and stock data distribution](/predictions/other_images/skewed_price_data.png)
 
 🛑**Solution**: Instead of using `StandardScaler` or `MinMaxScaler` directly, I applied a combination of:
 
