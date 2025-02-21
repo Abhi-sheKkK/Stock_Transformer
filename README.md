@@ -36,9 +36,9 @@ Unlike traditional **LSTMs** or **ARIMA models**, Transformers leverage **self-a
 - Calculate **MACD (Moving Average Convergence Divergence)** for momentum analysis.
 - Generate **time-based features** for improved predictions.
 - Normalize using:
-  - **MinMaxScaler** (ensuring scaled inputs for training)
-  - **Quantile Transformer** (handling non-linear distributions)
-
+  - **MinMaxScaler** (macd , ema, time2vec)
+  - **Quantile Transformer** (close , open , high , low , volume)
+-  choice of scaler depends on the stock, if very skewed data (common in stock price data) -log+quantile transform , if nearly normal distribution-MinMaxScaler.
 ### **3️⃣ How to Load Data**
 - **yfinance:** Fetches stock data dynamically.
 ```python
@@ -59,13 +59,13 @@ if __name__ == "__main__":
   - Hubber Loss to optimize training.
 
 **2️⃣ Why Time2Vec?**
-  - Time2Vec is used to encode time information effectively, improving the model's ability to      capture periodic patterns in stock data.
+  - Time2Vec is used to encode time information effectively, improving the model's ability to capture periodic patterns in stock data.
 
 **3️⃣ Model Training & Optimization**
   - **Batch size:** 64
   - **Optimizer:** Adam
   - **Learning rate:** 0.0001
-  - **Loss function:** Hubber Loss
+  - **Loss function:** MSE Loss
   - **Number of epochs:** 50-100 (adjustable based on performance)
 
 
@@ -76,7 +76,7 @@ if __name__ == "__main__":
   - Root Mean Square Error (RMSE)
   - Mean Absolute Percentage Error (MAPE)
 - **Visualization:**
-  - Actual vs. Predicted stock prices plotted using Matplotlib/Seaborn.
+  - Actual vs. Predicted stock prices plotted using Matplotlib..
   - Helps assess how well the model tracks stock price trends.
 
 ---
@@ -114,13 +114,28 @@ pip install -r requirements.txt
 ---
 ## 📈Predictions
   - **Crude_oil**
-  ![Crude oil](predictions/crude_oil/actual_vs_predicted.jpg)
+    
+      ![Crude oil](predictions/crude_oil/actual_vs_predicted.jpg)
+    
   - **Tata_motors**
-    ![Tata_Motors](predictions/tata_motors/predicted_vs_actual.png)
+      - Test MSE: 871.0430  
+        Test RMSE: 29.5134  
+        Test MAPE: 3.73%
+        
+        ![Tata_Motors](predictions/tata_motors/predicted_vs_actual.png)
+        
   - **Tesla**
-    ![Tesla](predictions/tesla/predicted_vs_actual.png)
+      - Test MSE: 129.6440  
+        Test RMSE: 11.3861  
+        Test MAPE: 3.28%
+        
+        ![Tesla](predictions/tesla/predicted_vs_actual.png)
   - **Apple**
-    ![Apple](predictions/Apple/actual_vs_predicted_price.png)
+      - Test MSE: 367.5187  
+        Test RMSE: 19.1708  
+        Test MAPE: 8.58%
+        
+        ![Apple](predictions/Apple/actual_vs_predicted_price.png)
 
  
 ## 🛠 Future Enhancements
@@ -154,7 +169,7 @@ pip install -r requirements.txt
 #### Solutions:
 - Implemented adaptive scaling with sliding windows.
 - Applied log transformation before scaling for price data.
-- Used robust scaling (median/IQR) for outlier resistance.
+- Quantile transformer on the log transformations.
 - Developed feature-specific scaling strategies.
 
 
