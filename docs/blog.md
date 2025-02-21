@@ -42,7 +42,7 @@ Many stocks start with very low prices and gradually increase over time. This cr
 
 Below is a comparison of how **Word2Vec + Positional Encoding** works in NLP versus **Time2Vec + Stock Prices** in time series:
 
-![comparison between word2Vec and stock data distribution](predictions\other_images\skewed_price_data)
+![comparison between word2Vec and stock data distribution](../predictions/other_images/skewed_price_data.png)
 
 🛑**Solution**: Instead of using `StandardScaler` or `MinMaxScaler` directly, I applied a combination of:
 
@@ -57,10 +57,10 @@ This solved the issue and made the data more suitable for Transformers, which pr
 
 Below is a comparison of predicted prices using **Standard Scaler** versus **Log + Quantile Scaling**:
 
-![Standard Scaler Predicted Prices](predictions/other_images/standard_scaler_performance.jpg)  
+![Standard Scaler Predicted Prices](../predictions/other_images/standard_scaler_performance.jpg)  
 *Figure 3: Predicted Prices with Standard Scaler.*
 
-![Log + Quantile Scaled Predicted Prices](predictions/other_images/log+quantile_performance.jpg)  
+![Log + Quantile Scaled Predicted Prices](../predictions/other_images/log+quantile_performance.jpg)  
 *Figure 4: Predicted Prices with Log + Quantile Scaling.*
 
 ---
@@ -136,24 +136,24 @@ I tested it on Tata Motors, Crude Oil, Apple, and Tesla. The performance was acc
 
 Below are the actual vs. predicted price plots for four different stocks:
 
-![Tata Motors: Actual vs. Predicted](predictions/tata_motors/predicted_vs_actual.png)  
+![Tata Motors: Actual vs. Predicted](../predictions/tata_motors/predicted_vs_actual.png)  
 *Figure 5: Tata Motors - Actual vs. Predicted Prices.*  
 **Test MSE**: 871.0430  
 **Test RMSE**: 29.5134  
 **Test MAPE**: 3.73%
 
 
-![Crude Oil: Actual vs. Predicted](predictions/crude_oil/actual_vs_predicted.jpg)  
+![Crude Oil: Actual vs. Predicted](../predictions/crude_oil/actual_vs_predicted.jpg)  
 *Figure 6: Crude Oil - Actual vs. Predicted Prices.*
 
 
-![Apple: Actual vs. Predicted](predictions/Apple/actual_vs_predicted_price.png)  
+![Apple: Actual vs. Predicted](../predictions/Apple/actual_vs_predicted_price.png)  
 *Figure 7: Apple - Actual vs. Predicted Prices.*  
 **Test MSE**: 367.5187  
 **Test RMSE:** 19.1708  
 **Test MAPE:** 8.58%
 
-![Tesla: Actual vs. Predicted](predictions/tesla/predicted_vs_actual.png)  
+![Tesla: Actual vs. Predicted](../predictions/tesla/predicted_vs_actual.png)  
 *Figure 8: Tesla - Actual vs. Predicted Prices.*  
 **Test MSE:** 137.8093   
 **Test RMSE:** 11.7392  
