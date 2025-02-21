@@ -17,7 +17,8 @@ Let's break down the entire process, the obstacles faced, and how I solved them.
 In NLP, words are transformed into embeddings (like Word2Vec) and combined with positional encodings so that Transformers can understand the sequence of words. Similarly, for stock price prediction, we needed an approach that could capture both linear time variations and periodic market patterns.
 
 🔹**Time2Vec** solves this problem by adding periodic properties to the time series data using sine and cosine functions with different frequencies.   
-🔹The peaks of the sine wave correspond to the most influential time steps, allowing the model to capture cyclical trends in stock movements. 🔹Essentially, Time2Vec acts like a combination of word embeddings and positional encoding for time series data.
+🔹The peaks of the sine wave correspond to the most influential time steps, allowing the model to capture cyclical trends in stock movements.   
+🔹Essentially, Time2Vec acts like a combination of word embeddings and positional encoding for time series data.
 
 
 
@@ -42,7 +43,7 @@ Many stocks start with very low prices and gradually increase over time. This cr
 
 Below is a comparison of how **Word2Vec + Positional Encoding** works in NLP versus **Time2Vec + Stock Prices** in time series:
 
-![comparison between word2Vec and stock data distribution](https://abhi-shekkk.github.io/Stock_Transformer/predictions/other_images/skewed_price_data.png))
+![comparison between word2Vec and stock data distribution](https://github.com/Abhi-sheKkK/Stock_Transformer/blob/main/predictions/other_images/skewed_price_data.png)
 
 🛑**Solution**: Instead of using `StandardScaler` or `MinMaxScaler` directly, I applied a combination of:
 
@@ -57,10 +58,10 @@ This solved the issue and made the data more suitable for Transformers, which pr
 
 Below is a comparison of predicted prices using **Standard Scaler** versus **Log + Quantile Scaling**:
 
-![Standard Scaler Predicted Prices](../predictions/other_images/standard_scaler_performance.jpg)  
+![Standard Scaler Predicted Prices](https://github.com/Abhi-sheKkK/Stock_Transformer/blob/main/predictions/other_images/standard_scaler_performance.jpg)  
 *Figure 3: Predicted Prices with Standard Scaler.*
 
-![Log + Quantile Scaled Predicted Prices](../predictions/other_images/log+quantile_performance.jpg)  
+![Log + Quantile Scaled Predicted Prices](https://github.com/Abhi-sheKkK/Stock_Transformer/blob/main/predictions/other_images/log%2Bquantile_performance.jpg)  
 *Figure 4: Predicted Prices with Log + Quantile Scaling.*
 
 ---
@@ -136,24 +137,24 @@ I tested it on Tata Motors, Crude Oil, Apple, and Tesla. The performance was acc
 
 Below are the actual vs. predicted price plots for four different stocks:
 
-![Tata Motors: Actual vs. Predicted](../predictions/tata_motors/predicted_vs_actual.png)  
+![Tata Motors: Actual vs. Predicted](https://github.com/Abhi-sheKkK/Stock_Transformer/blob/main/predictions/tata_motors/predicted_vs_actual.png)  
 *Figure 5: Tata Motors - Actual vs. Predicted Prices.*  
 **Test MSE**: 871.0430  
 **Test RMSE**: 29.5134  
 **Test MAPE**: 3.73%
 
 
-![Crude Oil: Actual vs. Predicted](../predictions/crude_oil/actual_vs_predicted.jpg)  
+![Crude Oil: Actual vs. Predicted](https://github.com/Abhi-sheKkK/Stock_Transformer/blob/main/predictions/crude_oil/actual_vs_predicted.jpg)  
 *Figure 6: Crude Oil - Actual vs. Predicted Prices.*
 
 
-![Apple: Actual vs. Predicted](../predictions/Apple/actual_vs_predicted_price.png)  
+![Apple: Actual vs. Predicted](https://github.com/Abhi-sheKkK/Stock_Transformer/blob/main/predictions/Apple/actual_vs_predicted_price.png)  
 *Figure 7: Apple - Actual vs. Predicted Prices.*  
 **Test MSE**: 367.5187  
 **Test RMSE:** 19.1708  
 **Test MAPE:** 8.58%
 
-![Tesla: Actual vs. Predicted](../predictions/tesla/predicted_vs_actual.png)  
+![Tesla: Actual vs. Predicted](https://github.com/Abhi-sheKkK/Stock_Transformer/blob/main/predictions/tesla/predicted_vs_actual.png)  
 *Figure 8: Tesla - Actual vs. Predicted Prices.*  
 **Test MSE:** 137.8093   
 **Test RMSE:** 11.7392  
@@ -183,12 +184,12 @@ Below are the actual vs. predicted price plots for four different stocks:
 
 ## Conclusion🏁
 
-This project was an exciting experiment in adapting NLP techniques for time series forecasting. By introducing **Time2Vec** and refining data preprocessing, I was able to significantly improve the Transformer model's performance in stock price prediction.
-🚀 Key Takeaways:
-✔ Time2Vec effectively converts time series data into a Transformer-friendly format
-✔ Log + Quantile transformations improve skewed stock data prediction
-✔ Feature engineering is essential for capturing market trends
-✔ Transformer models need a lot of data; small datasets perform poorly
+This project was an exciting experiment in adapting NLP techniques for time series forecasting. By introducing **Time2Vec** and refining data preprocessing, I was able to significantly improve the Transformer model's performance in stock price prediction.  
+**🚀 Key Takeaways:**    
+✔ Time2Vec effectively converts time series data into a Transformer-friendly format     
+✔ Log + Quantile transformations improve skewed stock data prediction     
+✔ Feature engineering is essential for capturing market trends   
+✔ Transformer models need a lot of data; small datasets perform poorly    
 
 While the model performs well in many scenarios, predicting sharp upward trends remains a challenge. Moving forward, hybrid models and modified attention mechanisms could further enhance its predictive power.
 
@@ -198,7 +199,7 @@ If you're interested in exploring the code and results, check out my repository!
 
 ## References
 
-1. Vaswani et al., "Attention is All You Need" (2017)
+1. ["Attention is All You Need" (2017)](https://arxiv.org/pdf/1706.03762)
 2. Time2Vec: [https://arxiv.org/abs/1907.05321](https://arxiv.org/abs/1907.05321)
 3. Transformer architecture : [https://jalammar.github.io/illustrated-transformer/](https://jalammar.github.io/illustrated-transformer/)
 
