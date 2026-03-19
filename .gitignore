@@ -1,0 +1,26 @@
+# Environments
+stock_env/
+venv/
+env/
+.env
+
+# PyTorch and Models
+*.pth
+best_model.pth
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# TensorBoard logs
+runs/
+
+# OS and IDEs
+.vifm-Bookmark
+.DS_Store
+.vscode/
+.idea/

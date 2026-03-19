@@ -113,9 +113,13 @@ pip install -r requirements.txt
 
 ---
 ## 📈Predictions
-  - **Crude_oil**
-    
-      ![Crude oil](predictions/crude_oil/actual_vs_predicted.jpg)
+  - **Crude_oil** (50 Epochs Full History, V2)
+      - Test MSE: 3.9364  
+        Test RMSE: 1.9840  
+        Test MAPE: 1.79%  
+        Directional Accuracy: 52.34%
+        
+      ![Crude oil](results/predictions_vs_actual.png)
     
   - **Tata_motors**
       - Test MSE: 871.0430  
@@ -138,6 +142,16 @@ pip install -r requirements.txt
         ![Apple](predictions/Apple/actual_vs_predicted_price.png)
 
  
+## ✨ Recent Enhancements (v2.0)
+The project has recently been refactored into a modular Python codebase with the following major upgrades:
+1. **Modular Codebase & CLI**: Extracted the notebook into `src/` modules (`data.py`, `features.py`, `model.py`, `train.py`) and added a `main.py` entry point.
+2. **Trainable Time2Vec**: The `Time2Vec` embedding layer has been moved natively into the `StockTransformer` with trainable `nn.Parameter` frequencies.
+3. **Advanced Technical Indicators**: Built automated extraction for RSI (14-day), Bollinger Bands (20-day), ATR, and VWAP.
+4. **Causal Masking**: Added an explicit `tgt_mask` to the Transformer Decoder to prevent predicting the future.
+5. **MLOps**: Integrated TensorBoard for experiment tracking and introduced a new **Directional Accuracy** validation metric!
+
+---
+
 ## 🛠 Future Enhancements
 
 1. **Hybrid Model Integration**
@@ -149,13 +163,6 @@ pip install -r requirements.txt
 
    - Enhance the model to better predict sudden spikes in stock prices, which are currently 
      underestimated.
-
-3. **Feature Engineering Improvements**
-
-   - Experiment with additional technical indicators (e.g., RSI, Bollinger Bands) to provide 
-     more insights to the model.
-4. **Time2Vec**
-   - Make time2vec trainable to automatically choose paramters.
      
 ---
 ## Key Challenges and Solutions
@@ -189,12 +196,12 @@ pip install -r requirements.txt
 ---
 
 
-### 3.time2vec
+### 3. Time2Vec Optimization
 #### Challenges:
-- Finding best frequency and period for time2vec.
+- Finding the best frequencies and phase shifts for Time2Vec embedding manually is difficult and suboptimal.
 
 #### Solutions:
-- compared outputs from different values.
+- Converted the Time2Vec frequencies and phase shifts to PyTorch `nn.Parameter` tensors, allowing the model to intrinsically learn the optimal time frequencies via backpropagation during training.
 
 ---
 
