@@ -9,3 +9,5 @@ yfinance>=0.1.70
 tqdm>=4.62.3
 quantile-forest>=1.0
 tensorboard>=2.15.0
+streamlit>=1.31.0
+plotly>=5.18.0

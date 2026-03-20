@@ -112,6 +112,39 @@ pip install -r requirements.txt
 4.  **Visualize Predictions:** View actual vs. predicted prices.
 
 ---
+## 🔮 Trading Inference Tool (CLI)
+Use the newly added `predict.py` script to fetch automated stock outlooks for the upcoming week based on the trained model.
+
+Run the script from your environment (ensure `best_model.pth` exists in your working directory):
+```bash
+python predict.py --ticker AAPL
+```
+This will automatically:
+- Fetch the latest stock data for AAPL
+- Compute required features (RSI, Bollinger Bands, ATR, VWAP)
+- Scale the 100-day required history
+- Autoregressively generate the expected prices for the next 5 days!
+
+---
+## 🌐 Interactive Web UI Dashboard
+A fully interactive web dashboard is now available for both **Inference** and **Training** directly from your browser!
+
+### Launching the UI
+Install the UI dependencies (included in requirements.txt):
+```bash
+pip install streamlit plotly
+```
+Run the dashboard:
+```bash
+streamlit run app.py
+```
+
+### Features:
+- **Configuration Sidebar:** Easily swap Stock Tickers, Window Sizes, and Hyperparameters.
+- **Inference Tab:** Click one button to fetch data and generate a smooth interactive Plotly graph predicting the next 5 days.
+- **Training Tab:** Train a new model dynamically directly from the UI, with real-time progress bars and loss curve generation.
+
+---
 ## 📈Predictions
   - **Crude_oil** (50 Epochs Full History, V2)
       - Test MSE: 3.9364  
