@@ -24,3 +24,7 @@ runs/
 .DS_Store
 .vscode/
 .idea/
+
+# App cache
+.cache/
+chroma_data/

@@ -1,3 +1,4 @@
+# Core
 torch>=2.0.0
 torchvision>=0.15.0
 torchaudio>=2.0.0
@@ -9,5 +10,25 @@ yfinance>=0.1.70
 tqdm>=4.62.3
 quantile-forest>=1.0
 tensorboard>=2.15.0
+
+# Dashboard
 streamlit>=1.31.0
 plotly>=5.18.0
+
+# FastAPI Backend
+fastapi>=0.110.0
+uvicorn>=0.27.0
+
+# Config
+python-dotenv>=1.0.0
+
+# News & Sentiment
+requests>=2.31.0
+transformers>=4.35.0
+
+# RAG (Phase 3)
+# llama-index>=0.10.0
+# chromadb>=0.4.0
+
+# CLI
+rich>=13.0.0
