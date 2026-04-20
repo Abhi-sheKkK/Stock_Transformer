@@ -34,6 +34,11 @@ class NewsArticle:
     url: str
     ticker: str
     relevance: str = "direct"
+    confidence: float = 0.0
+    source_count: int = 1
+    verified_sources: list = field(default_factory=list)
+    truth_score: float = 0.0
+    pillars: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -65,25 +70,43 @@ class NewsFeed:
 # Cache
 # ---------------------------------------------------------------------------
 
-_CACHE_DIR = config.data_cache_dir / "news"
-_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+_CACHE_DIR_RAW = config.data_cache_dir / "news" / "raw"
+_CACHE_DIR_INTEL = config.data_cache_dir / "news" / "intelligence"
+_CACHE_DIR_RAW.mkdir(parents=True, exist_ok=True)
+_CACHE_DIR_INTEL.mkdir(parents=True, exist_ok=True)
 
 
-def _cache_key(ticker: str) -> Path:
+def _cache_key(ticker: str, type: str = "intel") -> Path:
     h = hashlib.md5(ticker.upper().encode()).hexdigest()[:10]
-    return _CACHE_DIR / f"{ticker.upper().replace('.', '_')}_{h}.json"
+    dir = _CACHE_DIR_INTEL if type == "intel" else _CACHE_DIR_RAW
+    return dir / f"{ticker.upper().replace('.', '_')}_{h}.json"
 
 
 def _read_cache(ticker: str) -> Optional[NewsFeed]:
-    path = _cache_key(ticker)
-    if not path.exists():
+    """Read from the Intelligence cache."""
+    path = _cache_key(ticker, type="intel")
+    # Also check legacy root path for old cache transition
+    legacy_path = config.data_cache_dir / "news" / path.name
+    
+    selected_path = path if path.exists() else (legacy_path if legacy_path.exists() else None)
+    
+    if not selected_path:
         return None
+        
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(selected_path.read_text())
         fetched = datetime.fromisoformat(data["fetched_at"])
         if datetime.now() - fetched > timedelta(minutes=config.news.cache_ttl_minutes):
             return None
-        articles = [NewsArticle(**a) for a in data["articles"]]
+        
+        # Handle migration of cached data without confidence fields
+        articles = []
+        for a in data["articles"]:
+            if "confidence" not in a: a["confidence"] = 0.33
+            if "source_count" not in a: a["source_count"] = 1
+            if "verified_sources" not in a: a["verified_sources"] = [a.get("source", "Unknown")]
+            articles.append(NewsArticle(**a))
+            
         return NewsFeed(
             ticker=data["ticker"], articles=articles,
             fetched_at=data["fetched_at"],
@@ -93,9 +116,21 @@ def _read_cache(ticker: str) -> Optional[NewsFeed]:
         return None
 
 
-def _write_cache(feed: NewsFeed):
-    path = _cache_key(feed.ticker)
-    path.write_text(json.dumps(feed.to_dict(), indent=2, default=str))
+def _write_cache(feed: NewsFeed, raw_articles: list):
+    """Save both Intelligence (Top 10) and Raw (All) caches."""
+    # 1. Save Intelligence Cache
+    intel_path = _cache_key(feed.ticker, type="intel")
+    intel_path.write_text(json.dumps(feed.to_dict(), indent=2, default=str))
+    
+    # 2. Save Raw Cache
+    raw_path = _cache_key(feed.ticker, type="raw")
+    raw_data = {
+        "ticker": feed.ticker,
+        "fetched_at": feed.fetched_at,
+        "total_raw_articles": len(raw_articles),
+        "articles": [a.to_dict() if hasattr(a, "to_dict") else a for a in raw_articles]
+    }
+    raw_path.write_text(json.dumps(raw_data, indent=2, default=str))
 
 
 # ---------------------------------------------------------------------------
@@ -109,12 +144,27 @@ def _fetch_yfinance_news(ticker: str) -> list:
         stock = yf.Ticker(ticker)
         news_items = stock.news or []
         for item in news_items[:config.news.max_articles]:
-            title = item.get("title", "")
-            link = item.get("link", "")
-            publisher = item.get("publisher", "Unknown")
-            pub_time = item.get("providerPublishTime", 0)
+            # Support both old flat structure and new nested 'content' structure
+            content = item.get("content", item)
+            
+            title = content.get("title", "")
+            # New format uses clickThroughUrl, old format uses link
+            link = content.get("clickThroughUrl", {}).get("url", content.get("link", ""))
+            # New format uses provider.displayName
+            publisher = content.get("provider", {}).get("displayName", content.get("publisher", "Unknown"))
+            # New format uses pubDate
+            pub_time = content.get("providerPublishTime", 0)
+            if not pub_time and "pubDate" in content:
+                # pubDate is ISO string like 2024-04-20T11:38:47Z
+                pub_date_str = content["pubDate"]
+                articles.append(NewsArticle(
+                    title=title, summary=content.get("summary", title), source=publisher,
+                    published_date=pub_date_str, url=link, ticker=ticker,
+                ))
+                continue
+            
             pub_date = datetime.fromtimestamp(pub_time).isoformat() if pub_time else ""
-            summary = item.get("summary", title)
+            summary = content.get("summary", title)
 
             articles.append(NewsArticle(
                 title=title, summary=summary, source=publisher,
@@ -187,13 +237,151 @@ def _fetch_finnhub(ticker: str) -> list:
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _normalize_text(text: str) -> str:
+    """Normalize text for cross-source matching (lowercase, alphanumeric only)."""
+    import re
+    if not text: return ""
+    # Lowercase and keep only alphanumeric chars
+    normalized = re.sub(r'[^a-zA-Z0-9\s]', '', text.lower())
+    # Collapse multiple spaces
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    return normalized[:80]
+
+
+# ---------------------------------------------------------------------------
+# Truth Engine (The Analytical Heart)
+# ---------------------------------------------------------------------------
+
+class TruthEngine:
+    """
+    Analyzes news clusters across 4 pillars:
+    1. Content Consistency (Semantic Similarity)
+    2. Source Credibility (Weighting)
+    3. Temporal Convergence (Breaking News Detection)
+    4. Contradiction Check (Negation Detection)
+    """
+    
+    @staticmethod
+    def _calculate_consistency(texts: list) -> float:
+        """Pillar 1: Cosine Similarity between titles/summaries."""
+        if len(texts) < 2: return 0.2 # Lower baseline for single source
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity
+            vectorizer = TfidfVectorizer(stop_words='english')
+            tfidf = vectorizer.fit_transform(texts)
+            sim_matrix = cosine_similarity(tfidf)
+            # Average similarity between all pairs
+            n = len(texts)
+            avg_sim = (sim_matrix.sum() - n) / (n * (n - 1))
+            return float(avg_sim)
+        except Exception:
+            return 0.5
+
+    @staticmethod
+    def _calculate_credibility(sources: list) -> float:
+        """Pillar 2: Weighted source reliability."""
+        weights = config.news.truth_engine
+        source_map = {
+            "yahoofinance.com": weights.weight_yfinance,
+            "yahoo finance": weights.weight_yfinance,
+            "yfinance": weights.weight_yfinance,
+            "finnhub": weights.weight_finnhub,
+            "newsapi": weights.weight_newsapi,
+        }
+        
+        score = 0.0
+        for s in sources:
+            score = max(score, source_map.get(s.lower(), 0.5))
+        
+        # Bonus for diversity (multi-source validation)
+        if len(sources) > 1:
+            score = min(score + 0.1 * (len(sources) - 1), 1.0)
+        return score
+
+    @staticmethod
+    def _calculate_temporal(dates: list) -> float:
+        """Pillar 3: Convergence in time (Break within 15 min window)."""
+        if len(dates) < 2: return 0.5
+        try:
+            parsed_dates = []
+            for d in dates:
+                if not d: continue
+                # Handle ISO format
+                parsed_dates.append(datetime.fromisoformat(d.replace("Z", "")))
+            
+            if not parsed_dates: return 0.5
+            
+            # Find spread in minutes
+            spread = (max(parsed_dates) - min(parsed_dates)).total_seconds() / 60
+            
+            if spread <= 15: return 1.0
+            if spread <= 60: return 0.8
+            if spread <= 1440: return 0.5 # Same day
+            return 0.3
+        except Exception:
+            return 0.5
+
+    @staticmethod
+    def _detect_contradictions(texts: list) -> float:
+        """Pillar 4: Explicit negation search (Confirmed vs Denied)."""
+        NEGATIONS = ["deny", "denied", "reject", "rejected", "false", "refute", "incorrect", "cancel", "fail", "no"]
+        CONFIRMATIONS = ["confirm", "confirmed", "true", "verify", "yes", "deal", "merge", "win"]
+        
+        text_blob = " ".join(texts).lower()
+        has_neg = any(word in text_blob for word in NEGATIONS)
+        has_conf = any(word in text_blob for word in CONFIRMATIONS)
+        
+        # If both patterns are present in the same cluster, it highlights a contradiction
+        if has_neg and has_conf:
+            return config.news.truth_engine.p_contradiction
+        return 0.0
+
+    @classmethod
+    def score_cluster(cls, cluster: list) -> tuple:
+        """
+        Calculates the final Truth Score (S) for a cluster of news articles.
+        Returns (final_score, pillar_breakdown)
+        """
+        texts = [f"{a.title} {a.summary}" for a in cluster]
+        sources = [a.source for a in cluster]
+        dates = [a.published_date for a in cluster]
+        
+        # Calculate individual pillars
+        c_score = cls._calculate_consistency(texts)
+        w_score = cls._calculate_credibility(sources)
+        t_score = cls._calculate_temporal(dates)
+        penalty = cls._detect_contradictions(texts)
+        
+        # Formula: S = (w1*C) + (w2*W) + (w3*T) - Penalty
+        eng = config.news.truth_engine
+        s = (eng.w_consistency * c_score) + \
+            (eng.w_credibility * w_score) + \
+            (eng.w_temporal * t_score) - penalty
+        
+        final_score = max(min(s, 1.0), 0.0)
+        
+        breakdown = {
+            "consistency": round(c_score, 2),
+            "credibility": round(w_score, 2),
+            "temporal": round(t_score, 2),
+            "contradiction_penalty": round(penalty, 2)
+        }
+        
+        return final_score, breakdown
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 def fetch_news(ticker: str, company_name: str = "", bypass_cache: bool = False) -> NewsFeed:
     """
     Fetch financial news for a ticker from all available sources.
-    Results cached for NEWS_CACHE_TTL minutes.
+    Uses cross-source consensus to calculate confidence scores.
     """
     if not bypass_cache:
         cached = _read_cache(ticker)
@@ -201,38 +389,60 @@ def fetch_news(ticker: str, company_name: str = "", bypass_cache: bool = False) 
             logger.info(f"Cache hit for {ticker} ({len(cached.articles)} articles)")
             return cached
 
-    source_counts = {}
-    all_articles = []
+    active_sources = 1 # yfinance is always active
+    if config.news.news_api_key: active_sources += 1
+    if config.news.finnhub_api_key: active_sources += 1
 
+    source_counts = {}
+    raw_articles = []
+
+    # 1. Fetch from all sources
     yf_articles = _fetch_yfinance_news(ticker)
-    all_articles.extend(yf_articles)
-    if yf_articles:
-        source_counts["yfinance"] = len(yf_articles)
+    raw_articles.extend(yf_articles)
+    if yf_articles: source_counts["yfinance"] = len(yf_articles)
 
     newsapi_articles = _fetch_newsapi(ticker, company_name)
-    all_articles.extend(newsapi_articles)
-    if newsapi_articles:
-        source_counts["newsapi"] = len(newsapi_articles)
+    raw_articles.extend(newsapi_articles)
+    if newsapi_articles: source_counts["newsapi"] = len(newsapi_articles)
 
     finnhub_articles = _fetch_finnhub(ticker)
-    all_articles.extend(finnhub_articles)
-    if finnhub_articles:
-        source_counts["finnhub"] = len(finnhub_articles)
+    raw_articles.extend(finnhub_articles)
+    if finnhub_articles: source_counts["finnhub"] = len(finnhub_articles)
 
-    # Deduplicate by title
-    seen = set()
-    unique = []
-    for a in all_articles:
-        key = a.title.lower().strip()[:60]
-        if key and key not in seen:
-            seen.add(key)
-            unique.append(a)
+    # 2. Cluster by similarity (normalized titles)
+    clusters = {} # key: normalized_title -> list of NewsArticle
+    for art in raw_articles:
+        key = _normalize_text(art.title)
+        if not key: continue
+        if key not in clusters:
+            clusters[key] = []
+        clusters[key].append(art)
 
-    unique.sort(key=lambda a: a.published_date, reverse=True)
-    unique = unique[:config.news.max_articles]
+    # 3. Calculate Confidence & Consensus using Truth Engine
+    consolidated = []
+    for key, cluster in clusters.items():
+        truth_score, breakdown = TruthEngine.score_cluster(cluster)
+        
+        # Pick the representative article (one with longest summary preferably)
+        representative = max(cluster, key=lambda a: len(a.summary) if a.summary else 0)
+        
+        unique_sources = list(set(a.source for a in cluster))
+        representative.confidence = round(truth_score, 2)
+        representative.truth_score = round(truth_score, 2)
+        representative.source_count = len(unique_sources)
+        representative.verified_sources = unique_sources
+        representative.pillars = breakdown
+        
+        consolidated.append(representative)
 
-    feed = NewsFeed(ticker=ticker.upper(), articles=unique, source_breakdown=source_counts)
-    _write_cache(feed)
+    # 4. Rank by Truth Score (Primary) and Date (Secondary)
+    consolidated.sort(key=lambda a: (a.truth_score, a.published_date), reverse=True)
+    
+    # Top 10 as requested
+    final_articles = consolidated[:10]
+
+    feed = NewsFeed(ticker=ticker.upper(), articles=final_articles, source_breakdown=source_counts)
+    _write_cache(feed, raw_articles=raw_articles)
     return feed
 
 

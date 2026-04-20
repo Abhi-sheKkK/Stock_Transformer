@@ -28,3 +28,5 @@ runs/
 # App cache
 .cache/
 chroma_data/
+
+scratch

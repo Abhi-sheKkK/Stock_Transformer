@@ -26,12 +26,27 @@ class LLMConfig:
 
 
 @dataclass
+class TruthEngineConfig:
+    """Weights and parameters for the 4-pillar news scoring."""
+    w_consistency: float = 0.4
+    w_credibility: float = 0.3
+    w_temporal: float = 0.3
+    p_contradiction: float = 0.8  # Penalty factor
+    
+    # Pillar 2 Weights
+    weight_yfinance: float = 1.0
+    weight_finnhub: float = 0.9
+    weight_newsapi: float = 0.7
+
+
+@dataclass
 class NewsConfig:
     """News and data ingestion configuration."""
     news_api_key: str = os.getenv("NEWS_API_KEY", "")
     finnhub_api_key: str = os.getenv("FINNHUB_API_KEY", "")
     cache_ttl_minutes: int = int(os.getenv("NEWS_CACHE_TTL", "15"))
     max_articles: int = int(os.getenv("NEWS_MAX_ARTICLES", "20"))
+    truth_engine: TruthEngineConfig = field(default_factory=TruthEngineConfig)
 
 
 @dataclass
