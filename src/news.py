@@ -95,9 +95,14 @@ def _read_cache(ticker: str) -> Optional[NewsFeed]:
         
     try:
         data = json.loads(selected_path.read_text())
-        fetched = datetime.fromisoformat(data["fetched_at"])
-        if datetime.now() - fetched > timedelta(minutes=config.news.cache_ttl_minutes):
-            return None
+        
+        # If Only-Cache mode is active, bypass TTL check
+        if config.flags.news_only_cache:
+            logger.info(f"Cache hit (Strict Passive Mode) for {ticker}")
+        else:
+            fetched = datetime.fromisoformat(data["fetched_at"])
+            if datetime.now() - fetched > timedelta(minutes=config.news.cache_ttl_minutes):
+                return None
         
         # Handle migration of cached data without confidence fields
         articles = []

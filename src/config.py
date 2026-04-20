@@ -70,6 +70,7 @@ class FeatureFlags:
     enable_ai_reasoning: bool = os.getenv("ENABLE_AI_REASONING", "true").lower() == "true"
     enable_rag: bool = os.getenv("ENABLE_RAG", "true").lower() == "true"
     enable_explainability: bool = os.getenv("ENABLE_EXPLAINABILITY", "true").lower() == "true"
+    news_only_cache: bool = os.getenv("NEWS_ONLY_CACHE", "false").lower() == "true"
 
 
 @dataclass
