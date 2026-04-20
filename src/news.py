@@ -15,7 +15,7 @@ from typing import Optional
 import requests
 import yfinance as yf
 
-from config import config
+from .config import config
 
 logger = logging.getLogger(__name__)
 

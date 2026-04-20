@@ -8,8 +8,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Project root calculation (one level up from src/)
+_SRC_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SRC_DIR.parent
+
 # Load .env from project root
-_PROJECT_ROOT = Path(__file__).resolve().parent
 load_dotenv(_PROJECT_ROOT / ".env")
 
 

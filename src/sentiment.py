@@ -188,7 +188,7 @@ def get_sentiment_report(ticker: str, headlines: Optional[list] = None) -> Senti
     Fetches headlines from news service if not provided.
     """
     if headlines is None:
-        from api.services.news import get_headlines
+        from .news import get_headlines
         headlines = get_headlines(ticker, max_count=15)
 
     if not headlines:

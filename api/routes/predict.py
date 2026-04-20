@@ -27,7 +27,7 @@ async def predict_prices(
     try:
         from src.features import create_input
         from src.model import StockTransformer
-        from config import config
+        from src.config import config
 
         # Fetch and prepare data
         input_features, feature_scaler, time_scaler, close_scaler, scaled_close = create_input(ticker)

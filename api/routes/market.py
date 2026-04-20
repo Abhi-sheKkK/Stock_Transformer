@@ -4,7 +4,7 @@ Market snapshot API routes.
 
 from fastapi import APIRouter, HTTPException
 
-from api.services.market import get_market_snapshot
+from src.features import get_market_snapshot
 
 router = APIRouter(prefix="/market", tags=["Market"])
 

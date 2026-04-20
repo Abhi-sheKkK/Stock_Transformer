@@ -6,9 +6,9 @@ Full AI-powered analysis combining prediction + reasoning + strategy.
 
 from fastapi import APIRouter, HTTPException
 
-from api.services.market import get_market_snapshot
-from api.services.news import fetch_news, get_news_summary_text
-from api.services.sentiment import get_sentiment_report
+from src.features import get_market_snapshot
+from src.news import fetch_news, get_news_summary_text
+from src.sentiment import get_sentiment_report
 
 router = APIRouter(prefix="/analyze", tags=["Analysis"])
 

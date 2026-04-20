@@ -46,10 +46,10 @@ app.include_router(analyze.router)
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    import requests
+    from src.config import config
     ollama_status = "unknown"
     try:
-        resp = requests.get("http://localhost:11434/api/tags", timeout=3)
+        resp = requests.get(f"{config.llm.base_url}/api/tags", timeout=3)
         if resp.status_code == 200:
             models = [m["name"] for m in resp.json().get("models", [])]
             ollama_status = f"running (models: {', '.join(models) if models else 'none'})"
