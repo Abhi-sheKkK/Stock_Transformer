@@ -17,18 +17,31 @@ class Time2Vec(nn.Module):
         return torch.cat([t, sin_features, cos_features], dim=1)
 
 class StockTransformer(nn.Module):
-    def __init__(self, input_dim, d_model, nhead, num_encoder_layers, num_decoder_layers, seq_length, hidden_dim=128, dropout_rate=0.3):
+    def __init__(self, input_dim, d_model, nhead, num_encoder_layers, num_decoder_layers, seq_length, hidden_dim=128, dropout_rate=0.2):
         super(StockTransformer, self).__init__()
         self.time2vec = Time2Vec(num_frequency=16, period=256)
         # input_dim represents original features + 1 timestamp.
         # Time2Vec adds 32 features to the timestamp (1 -> 33)
         self.fc_in = nn.Linear(input_dim - 1 + 33, d_model)
+        self.input_norm = nn.LayerNorm(d_model)
+        
+        # dim_feedforward = 4 * d_model (standard ratio, NOT PyTorch's default 2048)
+        dim_ff = d_model * 4
+        
         self.transformer_encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead),
+            nn.TransformerEncoderLayer(
+                d_model=d_model, nhead=nhead,
+                dim_feedforward=dim_ff, dropout=dropout_rate,
+                batch_first=False
+            ),
             num_layers=num_encoder_layers
         )
         self.transformer_decoder = nn.TransformerDecoder(
-            nn.TransformerDecoderLayer(d_model=d_model, nhead=nhead),
+            nn.TransformerDecoderLayer(
+                d_model=d_model, nhead=nhead,
+                dim_feedforward=dim_ff, dropout=dropout_rate,
+                batch_first=False
+            ),
             num_layers=num_decoder_layers
         )
         self.fc_hidden = nn.Linear(d_model, hidden_dim)
@@ -46,8 +59,8 @@ class StockTransformer(nn.Module):
         tgt_time = tgt_time.reshape(tgt.size(0), tgt.size(1), -1)
         tgt = torch.cat([tgt_time, tgt[:, :, 1:]], dim=-1)
 
-        src = self.fc_in(src).permute(1, 0, 2)
-        tgt = self.fc_in(tgt).permute(1, 0, 2)
+        src = self.input_norm(self.fc_in(src)).permute(1, 0, 2)
+        tgt = self.input_norm(self.fc_in(tgt)).permute(1, 0, 2)
         memory = self.transformer_encoder(src)
         
         # Causal Masking
@@ -63,3 +76,4 @@ class StockTransformer(nn.Module):
         output = self.fc_out(output)
         
         return output.view(batch_size, seq_len)
+

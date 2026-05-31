@@ -29,8 +29,14 @@ async def predict_prices(
         from src.model import StockTransformer
         from src.config import config
 
-        # Fetch and prepare data
-        input_features, feature_scaler, time_scaler, close_scaler, scaled_close = create_input(ticker)
+        # Use persisted scalers from training to ensure same distribution
+        try:
+            input_features, feature_scaler, time_scaler, close_scaler, scaled_close = create_input(
+                ticker, scalers_path='models'
+            )
+        except Exception:
+            # Fallback: refit scalers (may produce different distribution than training)
+            input_features, feature_scaler, time_scaler, close_scaler, scaled_close = create_input(ticker)
 
         seq_length = config.model.seq_length
         if len(input_features) < seq_length:

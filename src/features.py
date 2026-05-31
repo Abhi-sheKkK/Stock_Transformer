@@ -1,17 +1,19 @@
 import pandas as pd
 import numpy as np
 import torch
+import joblib
+from pathlib import Path
 from sklearn.preprocessing import MinMaxScaler, QuantileTransformer
 import yfinance as yf
 from .model import Time2Vec
+from .cache import fetch_stock_data
 
 def get_market_snapshot(ticker: str) -> dict:
     """
     Generate a market snapshot with current technical indicators.
     Returns dict with interpreted signals and a summary string for LLM consumption.
     """
-    stock = yf.Ticker(ticker)
-    data = stock.history(period="6mo")
+    data = fetch_stock_data(ticker, period='6mo', ttl_seconds=900)
 
     if data.empty:
         return {"error": f"No data found for {ticker}", "ticker": ticker}
@@ -141,9 +143,18 @@ def get_market_snapshot(ticker: str) -> dict:
     }
 
 
-def create_input(stock_name):
-    stock_ticker = yf.Ticker(stock_name)
-    stock_data = stock_ticker.history(period='max')
+def create_input(stock_name, scalers_path=None):
+    """
+    Create model input features from stock data.
+    
+    If scalers_path is provided and the scaler files exist, loads pre-fitted
+    scalers (critical for inference — ensures same distribution as training).
+    Otherwise, fits new scalers from scratch (used during training).
+    
+    Returns:
+        input_features, feature_scaler, time_scaler, close_scaler, scaled_close
+    """
+    stock_data = fetch_stock_data(stock_name, period='max', ttl_seconds=14400)
     
     if stock_data.empty:
         raise ValueError(f"No data found for ticker {stock_name}")
@@ -185,17 +196,68 @@ def create_input(stock_name):
     
     close_price = features['Close'].values.reshape(-1, 1)
     
-    feature_scaler = MinMaxScaler()
-    time_scaler = MinMaxScaler()
-    close_scaler = QuantileTransformer(output_distribution='normal')
+    # Try to load pre-fitted scalers (for inference)
+    loaded = False
+    if scalers_path is not None:
+        scalers_path = Path(scalers_path)
+        if (scalers_path / 'feature_scaler.joblib').exists():
+            feature_scaler = joblib.load(scalers_path / 'feature_scaler.joblib')
+            time_scaler = joblib.load(scalers_path / 'time_scaler.joblib')
+            close_scaler = joblib.load(scalers_path / 'close_scaler.joblib')
+            loaded = True
+    
+    if not loaded:
+        feature_scaler = MinMaxScaler()
+        time_scaler = MinMaxScaler()
+        close_scaler = QuantileTransformer(output_distribution='normal')
     
     timestamps = pd.Series(stock_data.index).apply(lambda x: x.toordinal()).values.reshape(-1, 1)
-    time_scaled = time_scaler.fit_transform(timestamps).astype(np.float32)
+    
+    if loaded:
+        # Transform with pre-fitted scalers (may produce values slightly outside [0,1])
+        time_scaled = time_scaler.transform(timestamps).astype(np.float32)
+        scaled_features = pd.DataFrame(feature_scaler.transform(features))
+        scaled_close = close_scaler.transform(close_price)
+    else:
+        # Fit and transform (training path)
+        time_scaled = time_scaler.fit_transform(timestamps).astype(np.float32)
+        scaled_features = pd.DataFrame(feature_scaler.fit_transform(features))
+        scaled_close = close_scaler.fit_transform(close_price)
+    
     time_df = pd.DataFrame(time_scaled, columns=['Timestamp'])
-    
-    scaled_features = pd.DataFrame(feature_scaler.fit_transform(features))
-    scaled_close = close_scaler.fit_transform(close_price)
-    
     input_features = pd.concat([time_df, scaled_features], axis=1)
     
     return input_features, feature_scaler, time_scaler, close_scaler, scaled_close
+
+
+def save_scalers(feature_scaler, time_scaler, close_scaler, save_dir='models'):
+    """
+    Persist fitted scalers to disk. Must be called after training so that
+    inference uses the exact same scaler state.
+    """
+    save_dir = Path(save_dir)
+    save_dir.mkdir(exist_ok=True)
+    joblib.dump(feature_scaler, save_dir / 'feature_scaler.joblib')
+    joblib.dump(time_scaler, save_dir / 'time_scaler.joblib')
+    joblib.dump(close_scaler, save_dir / 'close_scaler.joblib')
+    print(f"Scalers saved to {save_dir}/")
+
+
+def load_scalers(load_dir='models'):
+    """
+    Load previously saved scalers. Returns (feature_scaler, time_scaler, close_scaler).
+    Raises FileNotFoundError if scalers haven't been saved yet.
+    """
+    load_dir = Path(load_dir)
+    required = ['feature_scaler.joblib', 'time_scaler.joblib', 'close_scaler.joblib']
+    for f in required:
+        if not (load_dir / f).exists():
+            raise FileNotFoundError(
+                f"Scaler file '{f}' not found in {load_dir}. "
+                f"Train the model first to generate scalers."
+            )
+    return (
+        joblib.load(load_dir / 'feature_scaler.joblib'),
+        joblib.load(load_dir / 'time_scaler.joblib'),
+        joblib.load(load_dir / 'close_scaler.joblib'),
+    )

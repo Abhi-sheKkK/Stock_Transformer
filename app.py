@@ -37,9 +37,12 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 tab1, tab2 = st.tabs(["🔮 Inference (Predict Next Days)", "🏋️ Training Dashboard"])
 
 @st.cache_data(show_spinner=False)
-def get_stock_data(ticker):
+def get_stock_data(ticker, use_saved_scalers=False):
     try:
-        input_features, feature_scaler, time_scaler, close_scaler, scaled_close = create_input(ticker)
+        scalers_path = 'models' if use_saved_scalers else None
+        input_features, feature_scaler, time_scaler, close_scaler, scaled_close = create_input(
+            ticker, scalers_path=scalers_path
+        )
         return input_features, feature_scaler, time_scaler, close_scaler, scaled_close
     except Exception as e:
         st.error(f"Error fetching data: {e}")
@@ -69,7 +72,7 @@ with tab1:
             st.warning("⚠️ No trained model found ('best_model.pth'). Please train the model first in the Training tab!")
         else:
             with st.spinner(f"Fetching data and preparing features for {ticker}..."):
-                input_features, feature_scaler, time_scaler, close_scaler, scaled_close = get_stock_data(ticker)
+                input_features, feature_scaler, time_scaler, close_scaler, scaled_close = get_stock_data(ticker, use_saved_scalers=True)
             
             if input_features is not None:
                 if len(input_features) < seq_length:
@@ -162,7 +165,8 @@ with tab2:
             with st.spinner("Training in progress... Check terminal for detailed logs."):
                 predictions, targets, idx, train_losses, val_losses = train_and_evaluate(
                     model, train_loader, test_loader, close_scaler, 
-                    num_epochs=epochs, learning_rate=lr
+                    num_epochs=epochs, learning_rate=lr,
+                    feature_scaler=feature_scaler, time_scaler=time_scaler
                 )
             
             my_bar.progress(100, text="Training Complete!")

@@ -8,6 +8,8 @@ env/
 *.pth
 best_model.pth
 
+# Note: models/*.joblib (scalers) are intentionally tracked — required for inference
+
 # Python
 __pycache__/
 *.pyc

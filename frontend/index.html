@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI-powered financial intelligence platform with Transformer-based stock forecasting, sentiment analysis, and real-time market data.">
+    <title>AIFIS — AI Financial Intelligence System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230a0a0a'/><path d='M8 22V14l4-4 4 6 4-8 4 12' stroke='%2310b981' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <nav class="topbar" id="topbar">
+        <div class="topbar-left">
+            <div class="logo" id="logo">
+                <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+                    <rect width="32" height="32" rx="6" fill="currentColor" class="logo-bg"/>
+                    <path d="M8 22V14l4-4 4 6 4-8 4 12" stroke="var(--accent)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="logo-text">AIFIS</span>
+                <span class="logo-badge">v2.0</span>
+            </div>
+            <div class="topbar-nav">
+                <button class="nav-tab active" data-view="overview" id="nav-overview">Overview</button>
+                <button class="nav-tab" data-view="forecast" id="nav-forecast">Forecast</button>
+                <button class="nav-tab" data-view="news" id="nav-news">News & Sentiment</button>
+                <button class="nav-tab" data-view="technicals" id="nav-technicals">Technicals</button>
+                <button class="nav-tab" data-view="research" id="nav-research">
+                    Research
+                    <span class="tab-badge">Soon</span>
+                </button>
+            </div>
+        </div>
+        <div class="topbar-right">
+            <div class="ticker-search" id="ticker-search">
+                <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="text" id="ticker-input" placeholder="Enter ticker (e.g. AAPL)" value="AAPL" spellcheck="false" autocomplete="off">
+                <kbd class="search-kbd">/</kbd>
+            </div>
+            <button class="btn-analyze" id="btn-analyze">Analyze</button>
+            <div class="status-dot" id="status-dot" title="System Status">
+                <span class="dot"></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content" id="main-content">
+
+        <!-- Overview View -->
+        <section class="view active" id="view-overview">
+            <!-- Summary Strip -->
+            <div class="summary-strip" id="summary-strip">
+                <div class="strip-item" id="strip-ticker">
+                    <span class="strip-label">Ticker</span>
+                    <span class="strip-value" id="strip-ticker-val">—</span>
+                </div>
+                <div class="strip-item" id="strip-price">
+                    <span class="strip-label">Last Price</span>
+                    <span class="strip-value" id="strip-price-val">—</span>
+                </div>
+                <div class="strip-item" id="strip-change">
+                    <span class="strip-label">Change</span>
+                    <span class="strip-value" id="strip-change-val">—</span>
+                </div>
+                <div class="strip-item" id="strip-rsi">
+                    <span class="strip-label">RSI (14)</span>
+                    <span class="strip-value" id="strip-rsi-val">—</span>
+                </div>
+                <div class="strip-item" id="strip-trend">
+                    <span class="strip-label">Trend</span>
+                    <span class="strip-value" id="strip-trend-val">—</span>
+                </div>
+                <div class="strip-item" id="strip-sentiment">
+                    <span class="strip-label">Sentiment</span>
+                    <span class="strip-value" id="strip-sentiment-val">—</span>
+                </div>
+                <div class="strip-item" id="strip-volume">
+                    <span class="strip-label">Volume</span>
+                    <span class="strip-value" id="strip-volume-val">—</span>
+                </div>
+            </div>
+
+            <!-- Main Grid -->
+            <div class="overview-grid">
+                <!-- Left Column: Market + Indicators -->
+                <div class="grid-col grid-col-main">
+                    <div class="card card-market" id="card-market">
+                        <div class="card-header">
+                            <h2 class="card-title">Market Snapshot</h2>
+                            <span class="card-timestamp" id="market-timestamp">—</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="market-hero" id="market-hero">
+                                <div class="hero-price-block">
+                                    <span class="hero-ticker" id="hero-ticker">—</span>
+                                    <span class="hero-price" id="hero-price">—</span>
+                                    <span class="hero-change" id="hero-change">—</span>
+                                </div>
+                            </div>
+                            <div class="indicator-grid" id="indicator-grid">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Signal Cards -->
+                    <div class="card card-signals" id="card-signals">
+                        <div class="card-header">
+                            <h2 class="card-title">Technical Signals</h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="signal-grid" id="signal-grid">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: News + Sentiment -->
+                <div class="grid-col grid-col-side">
+                    <!-- Sentiment Summary -->
+                    <div class="card card-sentiment" id="card-sentiment">
+                        <div class="card-header">
+                            <h2 class="card-title">Sentiment Analysis</h2>
+                            <span class="card-method" id="sentiment-method">—</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="sentiment-gauge" id="sentiment-gauge">
+                                <div class="gauge-label" id="gauge-label">—</div>
+                                <div class="gauge-bar-wrapper">
+                                    <div class="gauge-bar" id="gauge-bar"></div>
+                                </div>
+                                <div class="gauge-score" id="gauge-score">—</div>
+                            </div>
+                            <div class="sentiment-dist" id="sentiment-dist">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- News Feed -->
+                    <div class="card card-news" id="card-news-feed">
+                        <div class="card-header">
+                            <h2 class="card-title">Latest Intelligence</h2>
+                            <span class="card-count" id="news-count">0 articles</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="news-list" id="news-list">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Forecast View -->
+        <section class="view" id="view-forecast">
+            <div class="forecast-header">
+                <div>
+                    <h2 class="section-title">Price Forecast</h2>
+                    <p class="section-desc">Transformer + Time2Vec autoregressive prediction</p>
+                </div>
+                <div class="forecast-controls">
+                    <div class="control-group">
+                        <label class="control-label">Horizon</label>
+                        <select id="forecast-days" class="control-select">
+                            <option value="5" selected>5 days</option>
+                            <option value="10">10 days</option>
+                            <option value="15">15 days</option>
+                            <option value="30">30 days</option>
+                        </select>
+                    </div>
+                    <button class="btn-analyze" id="btn-run-forecast">Run Forecast</button>
+                </div>
+            </div>
+            <div class="forecast-grid">
+                <div class="card card-forecast-chart" id="card-forecast-chart">
+                    <div class="card-header">
+                        <h2 class="card-title">Predicted Price Path</h2>
+                        <div class="card-model-info" id="forecast-model-info">—</div>
+                    </div>
+                    <div class="card-body">
+                        <div class="forecast-chart-container" id="forecast-chart-container">
+                            <div class="empty-state" id="forecast-empty">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-6"/></svg>
+                                <p>Select a ticker and run forecast to see predictions</p>
+                            </div>
+                            <canvas id="forecast-canvas" style="display:none;"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="card card-forecast-table" id="card-forecast-table">
+                    <div class="card-header">
+                        <h2 class="card-title">Prediction Schedule</h2>
+                    </div>
+                    <div class="card-body">
+                        <table class="data-table" id="forecast-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Predicted Price</th>
+                                    <th>Change</th>
+                                </tr>
+                            </thead>
+                            <tbody id="forecast-tbody">
+                                <tr><td colspan="3" class="table-empty">No predictions yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- News & Sentiment View -->
+        <section class="view" id="view-news">
+            <div class="news-view-header">
+                <h2 class="section-title">News & Sentiment Intelligence</h2>
+                <p class="section-desc">Multi-source news aggregation with Truth Engine scoring</p>
+            </div>
+            <div class="news-view-grid">
+                <div class="card card-news-detailed" id="card-news-detailed">
+                    <div class="card-header">
+                        <h2 class="card-title">News Feed</h2>
+                        <div class="source-badges" id="source-badges">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="news-detailed-list" id="news-detailed-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+                <div class="news-side-col">
+                    <div class="card card-truth-engine" id="card-truth-engine">
+                        <div class="card-header">
+                            <h2 class="card-title">Truth Engine</h2>
+                        </div>
+                        <div class="card-body">
+                            <p class="truth-desc">4-pillar cross-source verification system</p>
+                            <div class="truth-pillars" id="truth-pillars">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card card-sentiment-detail" id="card-sentiment-detail">
+                        <div class="card-header">
+                            <h2 class="card-title">Sentiment Breakdown</h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="sentiment-breakdown" id="sentiment-breakdown">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Technicals View -->
+        <section class="view" id="view-technicals">
+            <div class="technicals-header">
+                <h2 class="section-title">Technical Analysis</h2>
+                <p class="section-desc">Comprehensive indicator dashboard with signal interpretation</p>
+            </div>
+            <div class="technicals-grid" id="technicals-grid">
+                <!-- Populated by JS -->
+            </div>
+        </section>
+
+        <!-- Research View (Coming Soon) -->
+        <section class="view" id="view-research">
+            <div class="coming-soon-container">
+                <div class="coming-soon-content">
+                    <div class="coming-soon-icon">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    </div>
+                    <h2 class="coming-soon-title">Research Mode</h2>
+                    <p class="coming-soon-desc">Full AI-powered research reports with LLM reasoning, scenario analysis, and portfolio simulation. Powered by Llama 3 via Ollama.</p>
+                    <div class="coming-soon-features">
+                        <div class="cs-feature">
+                            <span class="cs-dot"></span>
+                            AI Reasoning Engine
+                        </div>
+                        <div class="cs-feature">
+                            <span class="cs-dot"></span>
+                            Scenario Analysis
+                        </div>
+                        <div class="cs-feature">
+                            <span class="cs-dot"></span>
+                            Portfolio Simulation
+                        </div>
+                        <div class="cs-feature">
+                            <span class="cs-dot"></span>
+                            RAG Q&A with Source Citations
+                        </div>
+                        <div class="cs-feature">
+                            <span class="cs-dot"></span>
+                            Explainable Forecasting (Attention Heatmaps)
+                        </div>
+                        <div class="cs-feature">
+                            <span class="cs-dot"></span>
+                            Comparative Analysis
+                        </div>
+                    </div>
+                    <span class="coming-soon-phase">Phase 2 — In Development</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner">
+            <div class="spinner-ring"></div>
+            <span class="spinner-text" id="loading-text">Analyzing...</span>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

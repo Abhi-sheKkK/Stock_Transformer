@@ -3,12 +3,18 @@ FastAPI application entry point.
 AI Financial Intelligence System backend.
 """
 
+import requests
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from api.routes import market, news, predict, analyze
+
+_FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 
 @asynccontextmanager
@@ -63,4 +69,13 @@ async def health_check():
         "service": "AI Financial Intelligence System",
         "ollama": ollama_status,
     }
+
+
+# Serve frontend static files
+if _FRONTEND_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(_FRONTEND_DIR)), name="static")
+
+    @app.get("/")
+    async def serve_frontend():
+        return FileResponse(str(_FRONTEND_DIR / "index.html"))
 

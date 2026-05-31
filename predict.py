@@ -21,11 +21,16 @@ def main():
     print(f"Fetching and preparing data for {args.ticker}...")
     
     # We use the full pipeline to get the exact scaled representation for the recent data
+    # Use persisted scalers from training to ensure same distribution
     try:
-        input_features, feature_scaler, time_scaler, close_scaler, scaled_close = create_input(args.ticker)
+        input_features, feature_scaler, time_scaler, close_scaler, scaled_close = create_input(
+            args.ticker, scalers_path='models'
+        )
+        print("Using persisted scalers from training.")
     except Exception as e:
-        print(f"Error fetching data for {args.ticker}: {e}")
-        return
+        print(f"Warning: Could not load persisted scalers ({e}), refitting from scratch.")
+        input_features, feature_scaler, time_scaler, close_scaler, scaled_close = create_input(args.ticker)
+        print("WARNING: Scalers were refit. Results may differ from training distribution.")
         
     # Take the last `seq_length` days for inference
     if len(input_features) < args.seq_length:

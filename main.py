@@ -45,7 +45,8 @@ def main():
     
     predictions, targets, idx, train_losses, val_losses = train_and_evaluate(
         model, train_loader, test_loader, close_scaler, 
-        num_epochs=args.epochs, learning_rate=args.lr
+        num_epochs=args.epochs, learning_rate=args.lr,
+        feature_scaler=feature_scaler, time_scaler=time_scaler
     )
     
     # Save enhanced plots
