@@ -1,27 +1,27 @@
 import argparse
 import torch
-import pandas as pd
 import numpy as np
 import datetime
 import warnings
 
 from src.features import create_input
 from src.model import StockTransformer
+from src.cache import fetch_stock_data
 
-# Suppress yfinance and pandas warnings for cleaner CLI output
 warnings.filterwarnings('ignore')
 
 def main():
     parser = argparse.ArgumentParser(description="Predict Next 5 Days Stock Prices")
     parser.add_argument('--ticker', type=str, default='AAPL', help='Stock ticker symbol')
-    parser.add_argument('--seq_length', type=int, default=100, help='Input sequence length')
+    parser.add_argument('--seq_length', type=int, default=60, help='Lookback window')
+    parser.add_argument('--horizon', type=int, default=5, help='Prediction horizon')
+    parser.add_argument('--d_model', type=int, default=128, help='Model dimension')
+    parser.add_argument('--stock_embed_dim', type=int, default=32, help='Stock embedding dimension')
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Fetching and preparing data for {args.ticker}...")
-    
-    # We use the full pipeline to get the exact scaled representation for the recent data
-    # Use persisted scalers from training to ensure same distribution
+
     try:
         input_features, feature_scaler, time_scaler, close_scaler, scaled_close = create_input(
             args.ticker, scalers_path='models'
@@ -30,84 +30,72 @@ def main():
     except Exception as e:
         print(f"Warning: Could not load persisted scalers ({e}), refitting from scratch.")
         input_features, feature_scaler, time_scaler, close_scaler, scaled_close = create_input(args.ticker)
-        print("WARNING: Scalers were refit. Results may differ from training distribution.")
-        
-    # Take the last `seq_length` days for inference
+
     if len(input_features) < args.seq_length:
         print(f"Not enough data for {args.ticker}. Minimum {args.seq_length} days required.")
         return
-        
-    src_data = input_features.iloc[-args.seq_length:].values
-    src = torch.tensor(src_data, dtype=torch.float32).unsqueeze(0).to(device)  # [1, seq_length, input_dim]
-    
-    # The start token for our decoder is the scaled close price of the very last known day
-    last_close_val = scaled_close[-1][0]
-    
-    input_dim = input_features.shape[1]
-    
+
+    # Prepare continuous features (drop Stock_ID, Sector_ID, Target_Log_Return)
+    stock_id = int(input_features['Stock_ID'].iloc[-1])
+    sector_id = int(input_features['Sector_ID'].iloc[-1])
+    continuous_cols = [c for c in input_features.columns if c not in ('Stock_ID', 'Sector_ID', 'Target_Log_Return')]
+    x_cont = input_features[continuous_cols].iloc[-args.seq_length:].values
+
+    x_temporal = torch.tensor(x_cont, dtype=torch.float32).unsqueeze(0).to(device)
+    stock_id_t = torch.tensor([stock_id], dtype=torch.long).to(device)
+    sector_id_t = torch.tensor([sector_id], dtype=torch.long).to(device)
+
+    num_continuous = len(continuous_cols)
+
     model = StockTransformer(
-        input_dim=input_dim,
-        d_model=64,
-        nhead=4,
-        num_encoder_layers=2,
-        num_decoder_layers=2,
-        seq_length=args.seq_length
+        num_continuous_features=num_continuous,
+        d_model=args.d_model, nhead=4, num_layers=4, dropout=0.25,
+        prediction_horizon=args.horizon,
+        max_seq_len=args.seq_length + 10,
+        stock_embed_dim=args.stock_embed_dim,
     )
-    
-    # Load the best model weights
+
     try:
         model.load_state_dict(torch.load('best_model.pth', map_location=device))
     except FileNotFoundError:
         print("Model file 'best_model.pth' not found. Please train the model first.")
         return
-        
+
     model.to(device)
     model.eval()
-    
-    # Autoregressive decoding for the next 5 days
-    predictions = []
-    
-    # Initialize the target sequence with the last known scaled close price
-    tgt_input = torch.zeros((1, 1, input_dim), device=device)
-    tgt_input[:, 0, 0] = last_close_val
-    
+
+    # Single forward pass → all 5 days predicted at once
     with torch.no_grad():
-        for _ in range(5):
-            output = model(src, tgt_input)
-            
-            # The model outputs predictions for the sequence [batch, seq_len]
-            # output[:, -1] is the prediction for the newest step
-            next_pred = output[:, -1].item()
-            predictions.append(next_pred)
-            
-            # Append this prediction to tgt_input for the next iteration step
-            new_step = torch.zeros((1, 1, input_dim), device=device)
-            new_step[:, 0, 0] = next_pred
-            tgt_input = torch.cat([tgt_input, new_step], dim=1)
-            
-    # Inverse transform predictions back to original $ scale
-    predictions_scaled = np.array(predictions).reshape(-1, 1)
-    predicted_prices = close_scaler.inverse_transform(predictions_scaled).flatten()
-    
-    print("\n" + "="*40)
-    print(f"  Expected Next 5 Days Prices: {args.ticker}")
-    print("="*40)
-    
+        predictions = model(x_temporal, stock_id_t, sector_id_t)  # [1, horizon]
+
+    pred_log_returns = close_scaler.inverse_transform(
+        predictions.cpu().numpy().reshape(-1, 1)
+    ).flatten()
+
+    # Fetch last actual close to compound into dollar prices
+    raw_data = fetch_stock_data(args.ticker, period='6mo', ttl_seconds=14400)
+    last_raw_close = float(raw_data['Close'].iloc[-1])
+
+    predicted_prices = []
+    price = last_raw_close
+    for r in pred_log_returns:
+        price = price * np.exp(r)
+        predicted_prices.append(price)
+
+    print("\n" + "=" * 40)
+    print(f"  Expected Next {args.horizon} Days: {args.ticker}")
+    print("=" * 40)
+
     current_date = datetime.datetime.today().date()
-    days_added = 0
-    predictions_idx = 0
-    
-    while predictions_idx < 5:
-        # Increment day
+    idx = 0
+    while idx < args.horizon:
         current_date += datetime.timedelta(days=1)
-        # Skip weekends (5 = Saturday, 6 = Sunday)
         if current_date.weekday() >= 5:
             continue
-            
-        print(f" Day {predictions_idx+1} ({current_date.strftime('%Y-%m-%d')}): ${predicted_prices[predictions_idx]:.2f}")
-        predictions_idx += 1
-        
-    print("="*40 + "\n")
+        print(f" Day {idx+1} ({current_date.strftime('%Y-%m-%d')}): ${predicted_prices[idx]:.2f}")
+        idx += 1
+
+    print("=" * 40 + "\n")
 
 if __name__ == "__main__":
     main()

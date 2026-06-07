@@ -3,10 +3,69 @@ import numpy as np
 import torch
 import joblib
 from pathlib import Path
-from sklearn.preprocessing import MinMaxScaler, QuantileTransformer
-import yfinance as yf
-from .model import Time2Vec
+from sklearn.preprocessing import StandardScaler
 from .cache import fetch_stock_data
+
+# Global tickers list and sector mapping
+TICKERS = [
+    # 1. Technology & Semiconductors
+    'AAPL', 'MSFT', 'NVDA', 'AVGO', 'ORCL', 'AMD', 'CRM',
+    # 2. Communication Services & Digital Media
+    'GOOGL', 'META', 'NFLX', 'DIS', 'TMUS', 'CMCSA',
+    # 3. Financials (Banking, Payments & Market Makers)
+    'JPM', 'BAC', 'MS', 'GS', 'V', 'MA', 'AXP',
+    # 4. Healthcare (Pharma, Devices & Insurance)
+    'LLY', 'UNH', 'JNJ', 'MRK', 'ABBV', 'TMO', 'ISRG',
+    # 5. Consumer Discretionary & Staples
+    'AMZN', 'TSLA', 'WMT', 'COST', 'HD', 'NKE', 'KO',
+    # 6. Industrials & Energy
+    'XOM', 'CVX', 'CAT', 'GE', 'UNP', 'HON', 'ETN'
+]
+
+TICKER_TO_SECTOR = {}
+# Tech (Sector 0)
+for t in ['AAPL', 'MSFT', 'NVDA', 'AVGO', 'ORCL', 'AMD', 'CRM']:
+    TICKER_TO_SECTOR[t] = 0
+# Comm (Sector 1)
+for t in ['GOOGL', 'META', 'NFLX', 'DIS', 'TMUS', 'CMCSA']:
+    TICKER_TO_SECTOR[t] = 1
+# Fin (Sector 2)
+for t in ['JPM', 'BAC', 'MS', 'GS', 'V', 'MA', 'AXP']:
+    TICKER_TO_SECTOR[t] = 2
+# Health (Sector 3)
+for t in ['LLY', 'UNH', 'JNJ', 'MRK', 'ABBV', 'TMO', 'ISRG']:
+    TICKER_TO_SECTOR[t] = 3
+# Consumer (Sector 4)
+for t in ['AMZN', 'TSLA', 'WMT', 'COST', 'HD', 'NKE', 'KO']:
+    TICKER_TO_SECTOR[t] = 4
+# Ind/Energy (Sector 5)
+for t in ['XOM', 'CVX', 'CAT', 'GE', 'UNP', 'HON', 'ETN']:
+    TICKER_TO_SECTOR[t] = 5
+
+
+class IdentityScaler:
+    """Scaler that returns the input data unchanged (used for raw cyclical temporal features)."""
+    def fit(self, X, y=None):
+        return self
+    def transform(self, X):
+        return X
+    def fit_transform(self, X, y=None):
+        return X
+    def inverse_transform(self, X):
+        return X
+
+
+class Scale100Scaler:
+    """Scaler that multiplies inputs by 100.0 (used to scale log return targets)."""
+    def fit(self, X, y=None):
+        return self
+    def transform(self, X):
+        return X * 100.0
+    def fit_transform(self, X, y=None):
+        return X * 100.0
+    def inverse_transform(self, X):
+        return X / 100.0
+
 
 def get_market_snapshot(ticker: str) -> dict:
     """
@@ -28,14 +87,12 @@ def get_market_snapshot(ticker: str) -> dict:
     currency = "₹" if any(s in ticker.upper() for s in [".NS", ".BO"]) else "$"
 
     # --- Technical Indicators ---
-    # RSI (14)
     delta = data["Close"].diff()
     gain = delta.where(delta > 0, 0).rolling(14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
     rs = gain / loss
     rsi = float((100 - (100 / (1 + rs))).iloc[-1])
 
-    # MACD
     ema12 = data["Close"].ewm(span=12, adjust=False).mean()
     ema26 = data["Close"].ewm(span=26, adjust=False).mean()
     macd_line = ema12 - ema26
@@ -43,7 +100,6 @@ def get_market_snapshot(ticker: str) -> dict:
     signal = float(macd_line.ewm(span=9, adjust=False).mean().iloc[-1])
     histogram = macd - signal
 
-    # Bollinger Bands (20)
     bb_ma = float(data["Close"].rolling(20).mean().iloc[-1])
     bb_std = float(data["Close"].rolling(20).std().iloc[-1])
     bb_upper = bb_ma + (bb_std * 2)
@@ -51,18 +107,15 @@ def get_market_snapshot(ticker: str) -> dict:
     bb_width = bb_upper - bb_lower
     bb_position = (price - bb_lower) / bb_width if bb_width > 0 else 0.5
 
-    # ATR (14)
     hl = data["High"] - data["Low"]
     hc = np.abs(data["High"] - data["Close"].shift())
     lc = np.abs(data["Low"] - data["Close"].shift())
     tr = pd.concat([hl, hc, lc], axis=1).max(axis=1)
     atr = float(tr.rolling(14).mean().iloc[-1])
 
-    # VWAP (14-day rolling)
     tp = (data["High"] + data["Low"] + data["Close"]) / 3
     vwap = float((tp * data["Volume"]).rolling(14).sum().iloc[-1] / data["Volume"].rolling(14).sum().iloc[-1])
 
-    # Volume
     avg_vol = float(data["Volume"].rolling(20).mean().iloc[-1])
     cur_vol = float(latest["Volume"])
     vol_ratio = cur_vol / avg_vol if avg_vol > 0 else 1.0
@@ -145,58 +198,136 @@ def get_market_snapshot(ticker: str) -> dict:
 
 def create_input(stock_name, scalers_path=None):
     """
-    Create model input features from stock data.
-    
-    If scalers_path is provided and the scaler files exist, loads pre-fitted
-    scalers (critical for inference — ensures same distribution as training).
-    Otherwise, fits new scalers from scratch (used during training).
-    
-    Returns:
-        input_features, feature_scaler, time_scaler, close_scaler, scaled_close
+    Create scale-agnostic relative input features from raw stock data.
     """
+    # 1. Fetch raw stock history
     stock_data = fetch_stock_data(stock_name, period='max', ttl_seconds=14400)
-    
     if stock_data.empty:
         raise ValueError(f"No data found for ticker {stock_name}")
         
-    stock_data['12day_EMA'] = stock_data['Close'].ewm(span=12, adjust=False).mean()
-    stock_data['24day_EMA'] = stock_data['Close'].ewm(span=24, adjust=False).mean()
-    stock_data['MACD'] = stock_data['12day_EMA'] - stock_data['24day_EMA']
+    # 2. Fetch GSPC/SPY for market benchmark
+    market_data = None
+    try:
+        market_data = fetch_stock_data('^GSPC', period='max', ttl_seconds=14400)
+    except Exception as e:
+        print(f"Warning: Could not fetch ^GSPC with period='max' ({e}). Retrying with period='10y'.")
+        try:
+            market_data = fetch_stock_data('^GSPC', period='10y', ttl_seconds=14400)
+        except Exception as e2:
+            print(f"Warning: Could not fetch ^GSPC with period='10y' ({e2}). Falling back to zero market returns.")
+            
+    if market_data is not None and not market_data.empty:
+        market_data['SPY_Log_Return'] = np.log(market_data['Close'] / market_data['Close'].shift(1))
+    else:
+        market_data = pd.DataFrame(index=stock_data.index)
+        market_data['SPY_Log_Return'] = 0.0
+        
+    # Join SPY/GSPC returns and align dates
+    stock_data = stock_data.join(market_data[['SPY_Log_Return']], how='left')
+    stock_data['SPY_Log_Return'] = stock_data['SPY_Log_Return'].fillna(0.0)
     
-    # Feature 1: RSI (14-day)
-    delta = stock_data['Close'].diff()
+    # 3. Base calculations on raw prices
+    close = stock_data['Close']
+    open_p = stock_data['Open']
+    high = stock_data['High']
+    low = stock_data['Low']
+    volume = stock_data['Volume']
+    
+    # Moving Averages
+    ema12 = close.ewm(span=12, adjust=False).mean()
+    ema24 = close.ewm(span=24, adjust=False).mean()
+    
+    # Bollinger Bands
+    bb_ma = close.rolling(window=20).mean()
+    bb_std = close.rolling(window=20).std()
+    bb_upper = bb_ma + (bb_std * 2)
+    bb_lower = bb_ma - (bb_std * 2)
+    
+    # ATR (14-day)
+    high_low = high - low
+    high_close = np.abs(high - close.shift())
+    low_close = np.abs(low - close.shift())
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = np.max(ranges, axis=1)
+    atr = true_range.rolling(14).mean()
+    
+    # VWAP (14-day)
+    typical_price = (high + low + close) / 3
+    vwap = (typical_price * volume).rolling(14).sum() / volume.rolling(14).sum()
+    
+    # RSI (14-day)
+    delta = close.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
-    stock_data['RSI'] = 100 - (100 / (1 + rs))
+    rsi = 100 - (100 / (1 + rs))
     
-    # Feature 2: Bollinger Bands (20-day)
-    stock_data['BB_MA'] = stock_data['Close'].rolling(window=20).mean()
-    stock_data['BB_Std'] = stock_data['Close'].rolling(window=20).std()
-    stock_data['BB_Upper'] = stock_data['BB_MA'] + (stock_data['BB_Std'] * 2)
-    stock_data['BB_Lower'] = stock_data['BB_MA'] - (stock_data['BB_Std'] * 2)
+    # 4. Construct stationary features DataFrame
+    features_df = pd.DataFrame(index=stock_data.index)
     
-    # Feature 3: ATR (14-day)
-    high_low = stock_data['High'] - stock_data['Low']
-    high_close = np.abs(stock_data['High'] - stock_data['Close'].shift())
-    low_close = np.abs(stock_data['Low'] - stock_data['Close'].shift())
-    ranges = pd.concat([high_low, high_close, low_close], axis=1)
-    true_range = np.max(ranges, axis=1)
-    stock_data['ATR'] = true_range.rolling(14).mean()
+    # 4a. Log returns for OHLC
+    features_df['Close_Log_Return'] = np.log(close / close.shift(1))
+    features_df['Open_Log_Return'] = np.log(open_p / close.shift(1))
+    features_df['High_Log_Return'] = np.log(high / close.shift(1))
+    features_df['Low_Log_Return'] = np.log(low / close.shift(1))
     
-    # Feature 4: Rolling VWAP (14-day)
-    typical_price = (stock_data['High'] + stock_data['Low'] + stock_data['Close']) / 3
-    volume = (typical_price * stock_data['Volume']).rolling(14).sum()
-    stock_data['VWAP'] = volume / stock_data['Volume'].rolling(14).sum()
+    # 4b. Standardize Volume (rolling 20-day Z-Score)
+    vol_mean_20 = volume.rolling(20).mean()
+    vol_std_20 = volume.rolling(20).std().replace(0, 1e-8)
+    features_df['Volume_Z'] = (volume - vol_mean_20) / vol_std_20
     
-    # Drop rows with NaN values resulting from rolling windows
-    stock_data.dropna(inplace=True)
+    # 4c. Normalize Moving Averages (Trend Indicators)
+    features_df['EMA12_dist'] = np.log(close / ema12)
+    features_df['EMA24_dist'] = np.log(close / ema24)
+    features_df['VWAP_dist'] = np.log(close / vwap)
     
-    features = stock_data.copy()
+    # 4d. Transform Oscillators & Volatility (Scale-Agnostic Indicators)
+    features_df['RSI_Scaled'] = rsi / 100.0
+    features_df['Percentage_MACD'] = (ema12 - ema24) / ema24.replace(0, 1e-8)
+    bb_range = bb_upper - bb_lower
+    features_df['BB_Percent'] = (close - bb_lower) / bb_range.replace(0, 1e-8)
+    features_df['Relative_ATR'] = atr / close
     
-    close_price = features['Close'].values.reshape(-1, 1)
+    # 4e. Macro Benchmark Return
+    features_df['SPY_Log_Return'] = stock_data['SPY_Log_Return']
     
-    # Try to load pre-fitted scalers (for inference)
+    # 4f. Create Cyclical Calendar Encodings
+    day_of_week = features_df.index.dayofweek.values
+    day_of_week = np.clip(day_of_week, 0, 4)  # Clip to Mon-Fri trading days
+    features_df['Day_of_Week_Sin'] = np.sin(2. * np.pi * day_of_week / 5.0)
+    features_df['Day_of_Week_Cos'] = np.cos(2. * np.pi * day_of_week / 5.0)
+    
+    month_of_year = features_df.index.month.values
+    features_df['Month_of_Year_Sin'] = np.sin(2. * np.pi * month_of_year / 12.0)
+    features_df['Month_of_Year_Cos'] = np.cos(2. * np.pi * month_of_year / 12.0)
+    
+    # Drop rows with NaN resulting from rolling windows/shifts
+    features_df.dropna(inplace=True)
+    
+    # 5. Extract category mappings
+    stock_name_upper = stock_name.upper()
+    if stock_name_upper in TICKERS:
+        stock_id = TICKERS.index(stock_name_upper)
+        sector_id = TICKER_TO_SECTOR[stock_name_upper]
+    else:
+        stock_id = 0
+        sector_id = 0
+        
+    features_df['Stock_ID'] = stock_id
+    features_df['Sector_ID'] = sector_id
+    
+    # Target: Close Log Return
+    close_price = features_df['Close_Log_Return'].values.reshape(-1, 1)
+    
+    # Split features into numerical (columns 0 to 12) and cyclical / categorical
+    numerical_cols = [
+        'Close_Log_Return', 'Open_Log_Return', 'High_Log_Return', 'Low_Log_Return', 'Volume_Z',
+        'EMA12_dist', 'EMA24_dist', 'VWAP_dist', 'RSI_Scaled', 'Percentage_MACD',
+        'BB_Percent', 'Relative_ATR', 'SPY_Log_Return'
+    ]
+    numerical_features = features_df[numerical_cols]
+    
+    # Fit / Transform numerical features
     loaded = False
     if scalers_path is not None:
         scalers_path = Path(scalers_path)
@@ -205,35 +336,33 @@ def create_input(stock_name, scalers_path=None):
             time_scaler = joblib.load(scalers_path / 'time_scaler.joblib')
             close_scaler = joblib.load(scalers_path / 'close_scaler.joblib')
             loaded = True
-    
+            
     if not loaded:
-        feature_scaler = MinMaxScaler()
-        time_scaler = MinMaxScaler()
-        close_scaler = QuantileTransformer(output_distribution='normal')
-    
-    timestamps = pd.Series(stock_data.index).apply(lambda x: x.toordinal()).values.reshape(-1, 1)
-    
+        feature_scaler = StandardScaler()
+        time_scaler = IdentityScaler()
+        close_scaler = Scale100Scaler()
+        
     if loaded:
-        # Transform with pre-fitted scalers (may produce values slightly outside [0,1])
-        time_scaled = time_scaler.transform(timestamps).astype(np.float32)
-        scaled_features = pd.DataFrame(feature_scaler.transform(features))
+        scaled_numerical = pd.DataFrame(feature_scaler.transform(numerical_features), index=numerical_features.index, columns=numerical_cols)
         scaled_close = close_scaler.transform(close_price)
     else:
-        # Fit and transform (training path)
-        time_scaled = time_scaler.fit_transform(timestamps).astype(np.float32)
-        scaled_features = pd.DataFrame(feature_scaler.fit_transform(features))
+        scaled_numerical = pd.DataFrame(feature_scaler.fit_transform(numerical_features), index=numerical_features.index, columns=numerical_cols)
         scaled_close = close_scaler.fit_transform(close_price)
+        
+    # Reconstruct input features DataFrame
+    # Concatenate: [Scaled Numerical (13), Cyclical (4), Stock_ID (1), Sector_ID (1)]
+    cyclical_df = features_df[['Day_of_Week_Sin', 'Day_of_Week_Cos', 'Month_of_Year_Sin', 'Month_of_Year_Cos']]
+    cats_df = features_df[['Stock_ID', 'Sector_ID']]
     
-    time_df = pd.DataFrame(time_scaled, columns=['Timestamp'])
-    input_features = pd.concat([time_df, scaled_features], axis=1)
+    input_features = pd.concat([scaled_numerical, cyclical_df, cats_df], axis=1)
+    input_features['Target_Log_Return'] = scaled_close
     
     return input_features, feature_scaler, time_scaler, close_scaler, scaled_close
 
 
 def save_scalers(feature_scaler, time_scaler, close_scaler, save_dir='models'):
     """
-    Persist fitted scalers to disk. Must be called after training so that
-    inference uses the exact same scaler state.
+    Persist fitted scalers to disk.
     """
     save_dir = Path(save_dir)
     save_dir.mkdir(exist_ok=True)
@@ -245,8 +374,7 @@ def save_scalers(feature_scaler, time_scaler, close_scaler, save_dir='models'):
 
 def load_scalers(load_dir='models'):
     """
-    Load previously saved scalers. Returns (feature_scaler, time_scaler, close_scaler).
-    Raises FileNotFoundError if scalers haven't been saved yet.
+    Load previously saved scalers.
     """
     load_dir = Path(load_dir)
     required = ['feature_scaler.joblib', 'time_scaler.joblib', 'close_scaler.joblib']

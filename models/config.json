@@ -1,0 +1,13 @@
+{
+    "num_continuous_features": 17,
+    "d_model": 64,
+    "nhead": 4,
+    "num_layers": 4,
+    "dropout": 0.25,
+    "prediction_horizon": 5,
+    "max_seq_len": 70,
+    "num_stocks": 41,
+    "stock_embed_dim": 32,
+    "num_sectors": 6,
+    "sector_embed_dim": 8
+}
