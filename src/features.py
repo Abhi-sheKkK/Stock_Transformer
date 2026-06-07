@@ -217,14 +217,38 @@ def create_input(stock_name, scalers_path=None):
             print(f"Warning: Could not fetch ^GSPC with period='10y' ({e2}). Falling back to zero market returns.")
             
     if market_data is not None and not market_data.empty:
-        market_data['SPY_Log_Return'] = np.log(market_data['Close'] / market_data['Close'].shift(1))
+        market_data['spy_log_return'] = np.log(market_data['Close'] / market_data['Close'].shift(1))
     else:
         market_data = pd.DataFrame(index=stock_data.index)
-        market_data['SPY_Log_Return'] = 0.0
+        market_data['spy_log_return'] = 0.0
         
     # Join SPY/GSPC returns and align dates
-    stock_data = stock_data.join(market_data[['SPY_Log_Return']], how='left')
-    stock_data['SPY_Log_Return'] = stock_data['SPY_Log_Return'].fillna(0.0)
+    stock_data = stock_data.join(market_data[['spy_log_return']], how='left')
+    stock_data['spy_log_return'] = stock_data['spy_log_return'].fillna(0.0)
+    
+    # 2b. Fetch VIX data for market volatility environment
+    vix_data = None
+    try:
+        vix_data = fetch_stock_data('^VIX', period='max', ttl_seconds=14400)
+    except Exception as e:
+        print(f"Warning: Could not fetch ^VIX with period='max' ({e}). Retrying with period='10y'.")
+        try:
+            vix_data = fetch_stock_data('^VIX', period='10y', ttl_seconds=14400)
+        except Exception as e2:
+            print(f"Warning: Could not fetch ^VIX with period='10y' ({e2}). Falling back to default VIX.")
+            
+    if vix_data is not None and not vix_data.empty:
+        vix_close = vix_data['Close']
+        vix_rm20 = vix_close.rolling(20).mean().replace(0, 1e-8)
+        vix_relative_height = vix_close / vix_rm20
+        vix_df = pd.DataFrame(index=vix_data.index)
+        vix_df['vix_relative_height'] = vix_relative_height
+    else:
+        vix_df = pd.DataFrame(index=stock_data.index)
+        vix_df['vix_relative_height'] = 1.0
+        
+    stock_data = stock_data.join(vix_df[['vix_relative_height']], how='left')
+    stock_data['vix_relative_height'] = stock_data['vix_relative_height'].fillna(1.0)
     
     # 3. Base calculations on raw prices
     close = stock_data['Close']
@@ -233,73 +257,58 @@ def create_input(stock_name, scalers_path=None):
     low = stock_data['Low']
     volume = stock_data['Volume']
     
-    # Moving Averages
-    ema12 = close.ewm(span=12, adjust=False).mean()
-    ema24 = close.ewm(span=24, adjust=False).mean()
-    
-    # Bollinger Bands
-    bb_ma = close.rolling(window=20).mean()
-    bb_std = close.rolling(window=20).std()
-    bb_upper = bb_ma + (bb_std * 2)
-    bb_lower = bb_ma - (bb_std * 2)
-    
-    # ATR (14-day)
-    high_low = high - low
-    high_close = np.abs(high - close.shift())
-    low_close = np.abs(low - close.shift())
-    ranges = pd.concat([high_low, high_close, low_close], axis=1)
-    true_range = np.max(ranges, axis=1)
-    atr = true_range.rolling(14).mean()
-    
-    # VWAP (14-day)
-    typical_price = (high + low + close) / 3
-    vwap = (typical_price * volume).rolling(14).sum() / volume.rolling(14).sum()
-    
-    # RSI (14-day)
-    delta = close.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    rsi = 100 - (100 / (1 + rs))
-    
     # 4. Construct stationary features DataFrame
     features_df = pd.DataFrame(index=stock_data.index)
     
-    # 4a. Log returns for OHLC
-    features_df['Close_Log_Return'] = np.log(close / close.shift(1))
-    features_df['Open_Log_Return'] = np.log(open_p / close.shift(1))
-    features_df['High_Log_Return'] = np.log(high / close.shift(1))
-    features_df['Low_Log_Return'] = np.log(low / close.shift(1))
+    # --- Baseline Stationary Returns ---
+    features_df['close_log_return'] = np.log(close / close.shift(1))
+    features_df['open_log_return'] = np.log(open_p / close.shift(1))
+    features_df['high_log_return'] = np.log(high / close.shift(1))
+    features_df['low_log_return'] = np.log(low / close.shift(1))
     
-    # 4b. Standardize Volume (rolling 20-day Z-Score)
     vol_mean_20 = volume.rolling(20).mean()
     vol_std_20 = volume.rolling(20).std().replace(0, 1e-8)
-    features_df['Volume_Z'] = (volume - vol_mean_20) / vol_std_20
+    features_df['volume_z_score'] = (volume - vol_mean_20) / vol_std_20
     
-    # 4c. Normalize Moving Averages (Trend Indicators)
-    features_df['EMA12_dist'] = np.log(close / ema12)
-    features_df['EMA24_dist'] = np.log(close / ema24)
-    features_df['VWAP_dist'] = np.log(close / vwap)
+    # --- Volatility Breakout Bundle ---
+    bb_mean_20 = close.rolling(window=20).mean()
+    bb_std_20 = close.rolling(window=20).std()
+    bb_upper_20 = bb_mean_20 + (bb_std_20 * 2)
+    bb_lower_20 = bb_mean_20 - (bb_std_20 * 2)
+    features_df['bb_band_squeeze'] = bb_mean_20 / (bb_upper_20 - bb_lower_20 + 1e-8)
+    features_df['dist_channel_high'] = np.log(high.rolling(20).max() / close)
+    features_df['volume_force_multiplier'] = features_df['close_log_return'] * features_df['volume_z_score']
     
-    # 4d. Transform Oscillators & Volatility (Scale-Agnostic Indicators)
-    features_df['RSI_Scaled'] = rsi / 100.0
-    features_df['Percentage_MACD'] = (ema12 - ema24) / ema24.replace(0, 1e-8)
-    bb_range = bb_upper - bb_lower
-    features_df['BB_Percent'] = (close - bb_lower) / bb_range.replace(0, 1e-8)
-    features_df['Relative_ATR'] = atr / close
+    # --- Trend Pullback Bundle ---
+    ema20 = close.ewm(span=20, adjust=False).mean()
+    ema50 = close.ewm(span=50, adjust=False).mean()
+    features_df['trend_alignment_ratio'] = np.log(ema50 / ema20.replace(0, 1e-8))
+    features_df['pullback_proximity'] = np.log(ema20 / close)
+    features_df['macro_beta_shield'] = features_df['close_log_return'] - stock_data['spy_log_return']
     
-    # 4e. Macro Benchmark Return
-    features_df['SPY_Log_Return'] = stock_data['SPY_Log_Return']
+    # --- Mean Reversion Bundle ---
+    features_df['price_z_score_distance'] = (close - bb_mean_20) / bb_std_20.replace(0, 1e-8)
     
-    # 4f. Create Cyclical Calendar Encodings
+    delta = close.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss.replace(0, 1e-8)
+    rsi = 100 - (100 / (1 + rs))
+    features_df['rsi_asymmetry'] = (rsi - 50) / 100.0
+    
+    # --- Macro Filters ---
+    features_df['spy_log_return'] = stock_data['spy_log_return']
+    features_df['vix_relative_height'] = stock_data['vix_relative_height']
+    
+    # --- Cyclical Time Encodings ---
     day_of_week = features_df.index.dayofweek.values
     day_of_week = np.clip(day_of_week, 0, 4)  # Clip to Mon-Fri trading days
-    features_df['Day_of_Week_Sin'] = np.sin(2. * np.pi * day_of_week / 5.0)
-    features_df['Day_of_Week_Cos'] = np.cos(2. * np.pi * day_of_week / 5.0)
+    features_df['day_sin'] = np.sin(2. * np.pi * day_of_week / 5.0)
+    features_df['day_cos'] = np.cos(2. * np.pi * day_of_week / 5.0)
     
     month_of_year = features_df.index.month.values
-    features_df['Month_of_Year_Sin'] = np.sin(2. * np.pi * month_of_year / 12.0)
-    features_df['Month_of_Year_Cos'] = np.cos(2. * np.pi * month_of_year / 12.0)
+    features_df['month_sin'] = np.sin(2. * np.pi * month_of_year / 12.0)
+    features_df['month_cos'] = np.cos(2. * np.pi * month_of_year / 12.0)
     
     # Drop rows with NaN resulting from rolling windows/shifts
     features_df.dropna(inplace=True)
@@ -316,14 +325,15 @@ def create_input(stock_name, scalers_path=None):
     features_df['Stock_ID'] = stock_id
     features_df['Sector_ID'] = sector_id
     
-    # Target: Close Log Return
-    close_price = features_df['Close_Log_Return'].values.reshape(-1, 1)
+    # Target: Close Log Return scaled by 100
+    close_price = features_df['close_log_return'].values.reshape(-1, 1)
     
-    # Split features into numerical (columns 0 to 12) and cyclical / categorical
+    # Split features into numerical and cyclical / categorical
     numerical_cols = [
-        'Close_Log_Return', 'Open_Log_Return', 'High_Log_Return', 'Low_Log_Return', 'Volume_Z',
-        'EMA12_dist', 'EMA24_dist', 'VWAP_dist', 'RSI_Scaled', 'Percentage_MACD',
-        'BB_Percent', 'Relative_ATR', 'SPY_Log_Return'
+        "close_log_return", "open_log_return", "high_log_return", "low_log_return",
+        "volume_z_score", "bb_band_squeeze", "dist_channel_high", "volume_force_multiplier",
+        "trend_alignment_ratio", "pullback_proximity", "macro_beta_shield",
+        "price_z_score_distance", "rsi_asymmetry", "spy_log_return", "vix_relative_height"
     ]
     numerical_features = features_df[numerical_cols]
     
@@ -350,8 +360,8 @@ def create_input(stock_name, scalers_path=None):
         scaled_close = close_scaler.fit_transform(close_price)
         
     # Reconstruct input features DataFrame
-    # Concatenate: [Scaled Numerical (13), Cyclical (4), Stock_ID (1), Sector_ID (1)]
-    cyclical_df = features_df[['Day_of_Week_Sin', 'Day_of_Week_Cos', 'Month_of_Year_Sin', 'Month_of_Year_Cos']]
+    # Concatenate: [Scaled Numerical (15), Cyclical (4), Stock_ID (1), Sector_ID (1)]
+    cyclical_df = features_df[['day_sin', 'day_cos', 'month_sin', 'month_cos']]
     cats_df = features_df[['Stock_ID', 'Sector_ID']]
     
     input_features = pd.concat([scaled_numerical, cyclical_df, cats_df], axis=1)
