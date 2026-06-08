@@ -25,6 +25,7 @@ python-dotenv>=1.0.0
 # News & Sentiment
 requests>=2.31.0
 transformers>=4.35.0
+groq>=0.5.0
 
 # RAG (Phase 3)
 # llama-index>=0.10.0

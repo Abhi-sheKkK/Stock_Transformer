@@ -149,14 +149,33 @@ def _fetch_yfinance_news(ticker: str) -> list:
         stock = yf.Ticker(ticker)
         news_items = stock.news or []
         for item in news_items[:config.news.max_articles]:
+            if not item or not isinstance(item, dict):
+                continue
             # Support both old flat structure and new nested 'content' structure
-            content = item.get("content", item)
+            content = item.get("content")
+            if not isinstance(content, dict):
+                content = item
             
             title = content.get("title", "")
-            # New format uses clickThroughUrl, old format uses link
-            link = content.get("clickThroughUrl", {}).get("url", content.get("link", ""))
-            # New format uses provider.displayName
-            publisher = content.get("provider", {}).get("displayName", content.get("publisher", "Unknown"))
+            
+            # Safely extract link
+            click_url = content.get("clickThroughUrl")
+            if isinstance(click_url, dict):
+                link = click_url.get("url", "")
+            else:
+                link = content.get("link", "")
+            if not isinstance(link, str):
+                link = ""
+                
+            # Safely extract publisher
+            provider_info = content.get("provider")
+            if isinstance(provider_info, dict):
+                publisher = provider_info.get("displayName", "") or content.get("publisher", "Unknown")
+            else:
+                publisher = content.get("publisher", "Unknown")
+            if not isinstance(publisher, str):
+                publisher = "Unknown"
+                
             # New format uses pubDate
             pub_time = content.get("providerPublishTime", 0)
             if not pub_time and "pubDate" in content:

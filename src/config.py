@@ -18,11 +18,13 @@ load_dotenv(_PROJECT_ROOT / ".env")
 
 @dataclass
 class LLMConfig:
-    """Ollama / Llama 3 configuration."""
+    """Ollama / Llama 3 / Groq configuration."""
     base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     model: str = os.getenv("OLLAMA_MODEL", "llama3:8b")
     temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.3"))
     max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "2048"))
+    groq_api_key: str = os.getenv("GROQ_API_KEY", "").strip().strip("'\"")
+    groq_model: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
 
 @dataclass
@@ -42,8 +44,8 @@ class TruthEngineConfig:
 @dataclass
 class NewsConfig:
     """News and data ingestion configuration."""
-    news_api_key: str = os.getenv("NEWS_API_KEY", "")
-    finnhub_api_key: str = os.getenv("FINNHUB_API_KEY", "")
+    news_api_key: str = os.getenv("NEWS_API_KEY", "").strip().strip("'\"")
+    finnhub_api_key: str = os.getenv("FINNHUB_API_KEY", "").strip().strip("'\"")
     cache_ttl_minutes: int = int(os.getenv("NEWS_CACHE_TTL", "15"))
     max_articles: int = int(os.getenv("NEWS_MAX_ARTICLES", "20"))
     truth_engine: TruthEngineConfig = field(default_factory=TruthEngineConfig)

@@ -325,22 +325,34 @@ function renderForecast(data) {
   // Table
   let prevPrice = null;
   $('#forecast-tbody').innerHTML = preds.map((p, i) => {
+    const origP = (data.original_predictions && data.original_predictions[i]) ? data.original_predictions[i].price : p.price;
     const change = prevPrice !== null ? ((p.price - prevPrice) / prevPrice * 100) : 0;
     const changeStr = i === 0 ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
     const changeClass = i === 0 ? '' : (change >= 0 ? 'positive' : 'negative');
     prevPrice = p.price;
     return `<tr>
       <td>${p.date}</td>
+      <td>${cur}${origP.toFixed(2)}</td>
       <td>${cur}${p.price.toFixed(2)}</td>
       <td class="${changeClass}">${changeStr}</td>
     </tr>`;
   }).join('');
 
-  // Chart
-  renderForecastChart(preds, cur);
+  // Toggle & populate LLM reasoning
+  const reasoningBox = $('#forecast-reasoning-box');
+  const reasoningText = $('#forecast-reasoning-text');
+  if (data.reasoning && data.reasoning.message) {
+    reasoningText.textContent = data.reasoning.message;
+    reasoningBox.style.display = 'block';
+  } else {
+    reasoningBox.style.display = 'none';
+  }
+
+  // Chart (including original unadjusted predictions if available)
+  renderForecastChart(preds, cur, data.original_predictions);
 }
 
-function renderForecastChart(predictions, currency) {
+function renderForecastChart(predictions, currency, originalPredictions = null) {
   const canvas = $('#forecast-canvas');
   const empty = $('#forecast-empty');
   empty.style.display = 'none';
@@ -359,8 +371,14 @@ function renderForecastChart(predictions, currency) {
 
   const prices = predictions.map((p) => p.price);
   const dates = predictions.map((p) => p.date);
-  const minP = Math.min(...prices) * 0.998;
-  const maxP = Math.max(...prices) * 1.002;
+  
+  // Calculate price boundaries including original predictions
+  let allPrices = [...prices];
+  if (originalPredictions) {
+    allPrices = allPrices.concat(originalPredictions.map(p => p.price));
+  }
+  const minP = Math.min(...allPrices) * 0.998;
+  const maxP = Math.max(...allPrices) * 1.002;
   const chartW = W - pad.left - pad.right;
   const chartH = H - pad.top - pad.bottom;
 
@@ -389,6 +407,19 @@ function renderForecastChart(predictions, currency) {
       ctx.fillText(d.slice(5), xScale(i), H - 10);
     }
   });
+
+  // Original Predictions (dashed line)
+  if (originalPredictions && originalPredictions.length === predictions.length) {
+    const origPrices = originalPredictions.map((p) => p.price);
+    ctx.beginPath();
+    ctx.moveTo(xScale(0), yScale(origPrices[0]));
+    origPrices.forEach((p, i) => ctx.lineTo(xScale(i), yScale(p)));
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]); // Reset line dash
+  }
 
   // Area fill
   const gradient = ctx.createLinearGradient(0, pad.top, 0, H - pad.bottom);

@@ -203,14 +203,19 @@
                             <thead>
                                 <tr>
                                     <th>Date</th>
-                                    <th>Predicted Price</th>
+                                    <th>Original Price</th>
+                                    <th>AI Enhanced Price</th>
                                     <th>Change</th>
                                 </tr>
                             </thead>
                             <tbody id="forecast-tbody">
-                                <tr><td colspan="3" class="table-empty">No predictions yet</td></tr>
+                                <tr><td colspan="4" class="table-empty">No predictions yet</td></tr>
                             </tbody>
                         </table>
+                        <div class="forecast-reasoning-box" id="forecast-reasoning-box" style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 6px; border-left: 3px solid var(--accent); display: none;">
+                            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.85rem; color: var(--accent); font-family: 'Outfit', sans-serif; text-transform: uppercase; letter-spacing: 0.5px;">LLM Sentiment Context</h4>
+                            <p id="forecast-reasoning-text" style="margin: 0; font-size: 0.85rem; line-height: 1.4; color: var(--text-secondary);"></p>
+                        </div>
                     </div>
                 </div>
             </div>
