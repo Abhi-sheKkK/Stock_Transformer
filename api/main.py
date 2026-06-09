@@ -33,7 +33,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow Streamlit frontend
+# CORS — allow frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

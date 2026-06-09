@@ -127,22 +127,31 @@ This will automatically:
 
 ---
 ## 🌐 Interactive Web UI Dashboard
-A fully interactive web dashboard is now available for both **Inference** and **Training** directly from your browser!
+A custom HTML/CSS/JS web dashboard is available for market data visualization, sentiment analysis, and stock price forecasting!
 
-### Launching the UI
-Install the UI dependencies (included in requirements.txt):
+### Launching the Application
+The frontend is built using Vanilla JS/CSS and served by a **FastAPI backend**.
+
+1️⃣ Run the backend server:
 ```bash
-pip install streamlit plotly
+python -m uvicorn api.main:app --reload
 ```
-Run the dashboard:
+or:
 ```bash
-streamlit run app.py
+uvicorn api.main:app --reload
 ```
+
+2️⃣ Open your browser and navigate to:
+```
+http://127.0.0.1:8000
+```
+This serves the frontend at `index.html` from the `frontend/` directory.
 
 ### Features:
-- **Configuration Sidebar:** Easily swap Stock Tickers, Window Sizes, and Hyperparameters.
-- **Inference Tab:** Click one button to fetch data and generate a smooth interactive Plotly graph predicting the next 5 days.
-- **Training Tab:** Train a new model dynamically directly from the UI, with real-time progress bars and loss curve generation.
+- **Interactive Charts**: Drawn dynamically via HTML5 canvas using the predicted prices.
+- **Market Snapshot**: Real-time Indicators (MACD, RSI, ATR, VWAP, BB) and signals.
+- **News & Sentiment Analyzer**: Live article aggregation with FinBERT sentiment scores and confidence levels.
+- **AI Forecasting & Reasoning**: Combines technicals, news sentiment, and the Stock Transformer forecasts to generate strategic AI-based predictions and rationale.
 
 ---
 ## 📈Predictions
