@@ -42,14 +42,19 @@ def fetch_stock_data(ticker: str, period: str = 'max', ttl_seconds: int = 14400)
         if age < ttl_seconds:
             data = pd.read_parquet(cache_file)
             if not data.empty:
-                print(f"  [cache] Using cached {ticker} data ({age/60:.0f}m old, TTL {ttl_seconds/60:.0f}m)")
-                return data
+                data = data.dropna(subset=['Close', 'Open', 'High', 'Low'])
+                if not data.empty:
+                    print(f"  [cache] Using cached {ticker} data ({age/60:.0f}m old, TTL {ttl_seconds/60:.0f}m)")
+                    return data
     
     # Fetch fresh data
     print(f"  [cache] Fetching fresh {ticker} data from yfinance (period={period})...")
     stock = yf.Ticker(ticker)
     data = stock.history(period=period)
     
+    if not data.empty:
+        data = data.dropna(subset=['Close', 'Open', 'High', 'Low'])
+        
     if data.empty:
         raise ValueError(f"No data found for ticker {ticker}")
     

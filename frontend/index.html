@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v=2.0.1">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230a0a0a'/><path d='M8 22V14l4-4 4 6 4-8 4 12' stroke='%2310b981' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 </head>
 <body>
@@ -28,10 +28,7 @@
                 <button class="nav-tab" data-view="forecast" id="nav-forecast">Forecast</button>
                 <button class="nav-tab" data-view="news" id="nav-news">News & Sentiment</button>
                 <button class="nav-tab" data-view="technicals" id="nav-technicals">Technicals</button>
-                <button class="nav-tab" data-view="research" id="nav-research">
-                    Research
-                    <span class="tab-badge">Soon</span>
-                </button>
+                <button class="nav-tab" data-view="research" id="nav-research">Research</button>
             </div>
         </div>
         <div class="topbar-right">
@@ -275,42 +272,143 @@
             </div>
         </section>
 
-        <!-- Research View (Coming Soon) -->
+        <!-- Research View -->
         <section class="view" id="view-research">
-            <div class="coming-soon-container">
+            <div class="research-header">
+                <div>
+                    <h2 class="section-title">AI Research Report</h2>
+                    <p class="section-desc">Comprehensive equity analysis powered by Transformer + Groq LLM</p>
+                </div>
+                <div class="research-controls">
+                    <button class="btn-analyze" id="btn-generate-research">Generate Report</button>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div class="research-empty" id="research-empty">
                 <div class="coming-soon-content">
                     <div class="coming-soon-icon">
                         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                     </div>
-                    <h2 class="coming-soon-title">Research Mode</h2>
-                    <p class="coming-soon-desc">Full AI-powered research reports with LLM reasoning, scenario analysis, and portfolio simulation. Powered by Llama 3 via Ollama.</p>
-                    <div class="coming-soon-features">
-                        <div class="cs-feature">
-                            <span class="cs-dot"></span>
-                            AI Reasoning Engine
+                    <h2 class="coming-soon-title">Generate a Research Report</h2>
+                    <p class="coming-soon-desc">Enter a ticker symbol and click "Generate Report" to produce a full AI-powered equity research analysis with technical signals, sentiment breakdown, price forecast, and investment thesis.</p>
+                </div>
+            </div>
+
+            <!-- Report Content (hidden until generated) -->
+            <div class="research-report" id="research-report" style="display:none;">
+
+                <!-- Rating Banner -->
+                <div class="research-rating-banner" id="research-rating-banner">
+                    <div class="rating-left">
+                        <span class="rating-ticker" id="research-report-ticker">—</span>
+                        <span class="rating-price" id="research-report-price">—</span>
+                        <span class="rating-change" id="research-report-change">—</span>
+                    </div>
+                    <div class="rating-right">
+                        <span class="rating-badge" id="research-rating-badge">—</span>
+                        <span class="rating-llm-badge" id="research-llm-badge">DATA</span>
+                    </div>
+                </div>
+
+                <!-- Executive Summary -->
+                <div class="card research-card" id="card-exec-summary">
+                    <div class="card-header">
+                        <h2 class="card-title">Executive Summary</h2>
+                        <span class="card-timestamp" id="research-timestamp">—</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="research-text" id="research-exec-summary">—</p>
+                    </div>
+                </div>
+
+                <!-- 2-Column Grid: Technicals + Sentiment -->
+                <div class="research-grid-2col">
+                    <div class="card research-card" id="card-research-technicals">
+                        <div class="card-header">
+                            <h2 class="card-title">Technical Analysis</h2>
+                            <span class="research-signal-badge" id="research-tech-signal">—</span>
                         </div>
-                        <div class="cs-feature">
-                            <span class="cs-dot"></span>
-                            Scenario Analysis
-                        </div>
-                        <div class="cs-feature">
-                            <span class="cs-dot"></span>
-                            Portfolio Simulation
-                        </div>
-                        <div class="cs-feature">
-                            <span class="cs-dot"></span>
-                            RAG Q&A with Source Citations
-                        </div>
-                        <div class="cs-feature">
-                            <span class="cs-dot"></span>
-                            Explainable Forecasting (Attention Heatmaps)
-                        </div>
-                        <div class="cs-feature">
-                            <span class="cs-dot"></span>
-                            Comparative Analysis
+                        <div class="card-body">
+                            <p class="research-text" id="research-tech-details">—</p>
+                            <div class="research-market-levels" id="research-market-levels">
+                                <!-- Populated by JS -->
+                            </div>
                         </div>
                     </div>
-                    <span class="coming-soon-phase">Phase 2 — In Development</span>
+                    <div class="card research-card" id="card-research-sentiment">
+                        <div class="card-header">
+                            <h2 class="card-title">Sentiment Analysis</h2>
+                            <span class="research-signal-badge" id="research-sent-signal">—</span>
+                        </div>
+                        <div class="card-body">
+                            <p class="research-text" id="research-sent-details">—</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Price Forecast -->
+                <div class="card research-card" id="card-research-forecast">
+                    <div class="card-header">
+                        <h2 class="card-title">Price Forecast</h2>
+                        <div class="research-forecast-meta">
+                            <span class="research-forecast-direction" id="research-forecast-direction">—</span>
+                            <span class="research-forecast-confidence" id="research-forecast-confidence">—</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="research-forecast-grid">
+                            <div class="research-forecast-chart-wrap" id="research-forecast-chart-wrap">
+                                <canvas id="research-forecast-canvas"></canvas>
+                            </div>
+                            <div class="research-forecast-info">
+                                <div class="research-target-box" id="research-target-box">
+                                    <span class="research-target-label">5-Day Target</span>
+                                    <span class="research-target-value" id="research-target-value">—</span>
+                                </div>
+                                <p class="research-text" id="research-forecast-reasoning">—</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2-Column: Risk + Catalysts -->
+                <div class="research-grid-2col">
+                    <div class="card research-card" id="card-research-risks">
+                        <div class="card-header">
+                            <h2 class="card-title">Risk Factors</h2>
+                        </div>
+                        <div class="card-body">
+                            <ul class="research-list research-list-risk" id="research-risk-list">
+                                <!-- Populated by JS -->
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card research-card" id="card-research-catalysts">
+                        <div class="card-header">
+                            <h2 class="card-title">Catalysts</h2>
+                        </div>
+                        <div class="card-body">
+                            <ul class="research-list research-list-catalyst" id="research-catalyst-list">
+                                <!-- Populated by JS -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Investment Thesis -->
+                <div class="card research-card" id="card-investment-thesis">
+                    <div class="card-header">
+                        <h2 class="card-title">Investment Thesis</h2>
+                    </div>
+                    <div class="card-body">
+                        <p class="research-text research-thesis" id="research-thesis">—</p>
+                    </div>
+                </div>
+
+                <!-- Disclaimer -->
+                <div class="research-disclaimer">
+                    <p>This report is generated by an AI system for informational purposes only. It does not constitute financial advice. Always conduct your own research and consult a licensed financial advisor before making investment decisions.</p>
                 </div>
             </div>
         </section>
@@ -327,6 +425,6 @@
     <!-- Toast Container -->
     <div class="toast-container" id="toast-container"></div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=2.0.1"></script>
 </body>
 </html>

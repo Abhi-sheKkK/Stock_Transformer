@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from api.routes import market, news, predict, analyze
+from api.routes import market, news, predict, analyze, research
 
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -47,6 +47,7 @@ app.include_router(market.router)
 app.include_router(news.router)
 app.include_router(predict.router)
 app.include_router(analyze.router)
+app.include_router(research.router)
 
 
 @app.get("/health")

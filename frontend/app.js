@@ -11,6 +11,7 @@ const state = {
   market: null,
   news: null,
   forecast: null,
+  research: null,
   loading: false,
 };
 
@@ -65,6 +66,7 @@ function initActions() {
     if (state.ticker) runAnalysis();
   });
   $('#btn-run-forecast').addEventListener('click', runForecast);
+  $('#btn-generate-research').addEventListener('click', runResearch);
 }
 
 // ── Health Check ──
@@ -533,9 +535,192 @@ function toast(msg, type = 'info') {
   setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 200); }, 3500);
 }
 
-// Handle window resize for chart
+// ── Research Mode ──
+async function runResearch() {
+  const ticker = $('#ticker-input').value.trim().toUpperCase() || state.ticker;
+  showLoading('Generating AI research report...');
+  try {
+    const res = await fetch(`${API_BASE}/research/${ticker}`, { method: 'POST' });
+    if (!res.ok) throw new Error(await res.text());
+    state.research = await res.json();
+    renderResearch(state.research);
+    toast(`Research report generated for ${ticker}`, 'success');
+  } catch (err) {
+    toast(`Research failed: ${err.message}`, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function renderResearch(data) {
+  if (!data || !data.report) return;
+  const r = data.report;
+  const d = data.data;
+  const cur = data.currency || '$';
+
+  // Show report, hide empty state
+  $('#research-empty').style.display = 'none';
+  $('#research-report').style.display = 'flex';
+
+  // Rating Banner
+  $('#research-report-ticker').textContent = data.ticker;
+  $('#research-report-price').textContent = `${cur}${d.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  const changeEl = $('#research-report-change');
+  changeEl.textContent = `${d.price_change_pct >= 0 ? '+' : ''}${d.price_change_pct.toFixed(2)}%`;
+  changeEl.className = `rating-change ${d.price_change_pct >= 0 ? 'positive' : 'negative'}`;
+
+  const ratingBadge = $('#research-rating-badge');
+  const rating = (r.rating || 'HOLD').toUpperCase();
+  ratingBadge.textContent = rating;
+  ratingBadge.className = `rating-badge ${rating.toLowerCase().replace(/\s+/g, '-')}`;
+
+  const llmBadge = $('#research-llm-badge');
+  llmBadge.textContent = r.llm_generated ? 'AI GENERATED' : 'DATA ONLY';
+  llmBadge.style.background = r.llm_generated ? 'var(--accent-dim)' : 'var(--blue-dim)';
+  llmBadge.style.color = r.llm_generated ? 'var(--accent-text)' : 'var(--blue)';
+
+  // Timestamp
+  $('#research-timestamp').textContent = new Date(data.generated_at).toLocaleString();
+
+  // Executive Summary
+  $('#research-exec-summary').textContent = r.executive_summary || '—';
+
+  // Technical Analysis
+  const techSignal = r.technical_analysis?.signal || 'neutral';
+  const techBadge = $('#research-tech-signal');
+  techBadge.textContent = techSignal.toUpperCase();
+  techBadge.className = `research-signal-badge ${techSignal}`;
+  $('#research-tech-details').textContent = r.technical_analysis?.details || '—';
+
+  // Market levels
+  const mp = r.market_position;
+  if (mp?.key_levels) {
+    $('#research-market-levels').innerHTML = `<p class="research-text" style="margin-top:8px;font-size:12px;color:var(--text-tertiary)">${escHtml(mp.key_levels)}</p>`;
+  }
+
+  // Sentiment Analysis
+  const sentSignal = r.sentiment_analysis?.overall || 'neutral';
+  const sentBadge = $('#research-sent-signal');
+  sentBadge.textContent = sentSignal.toUpperCase();
+  sentBadge.className = `research-signal-badge ${sentSignal}`;
+  $('#research-sent-details').textContent = r.sentiment_analysis?.key_drivers || '—';
+
+  // Price Forecast
+  const pf = r.price_forecast || {};
+  const dirEl = $('#research-forecast-direction');
+  dirEl.textContent = (pf.direction || 'unknown').toUpperCase();
+  dirEl.className = `research-forecast-direction ${pf.direction || 'sideways'}`;
+  $('#research-forecast-confidence').textContent = `Confidence: ${(pf.confidence || 'medium').toUpperCase()}`;
+  $('#research-target-value').textContent = pf.target_5d || '—';
+  $('#research-forecast-reasoning').textContent = pf.reasoning || '—';
+
+  // Forecast mini-chart
+  if (d.prediction_available && d.predicted_prices?.length > 0) {
+    renderResearchChart(d.predicted_prices, d.pred_dates, cur, d.price);
+  }
+
+  // Risk Factors
+  const risks = r.risk_factors || [];
+  $('#research-risk-list').innerHTML = risks.map(r => `<li>${escHtml(r)}</li>`).join('') || '<li>No specific risks identified.</li>';
+
+  // Catalysts
+  const cats = r.catalysts || [];
+  $('#research-catalyst-list').innerHTML = cats.map(c => `<li>${escHtml(c)}</li>`).join('') || '<li>No specific catalysts identified.</li>';
+
+  // Investment Thesis
+  $('#research-thesis').textContent = r.investment_thesis || '—';
+}
+
+function renderResearchChart(prices, dates, currency, lastClose) {
+  const canvas = $('#research-forecast-canvas');
+  const container = $('#research-forecast-chart-wrap');
+  canvas.width = container.clientWidth;
+  canvas.height = 220;
+
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  const pad = { top: 20, right: 50, bottom: 30, left: 10 };
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Include lastClose as day 0
+  const allPrices = [lastClose, ...prices];
+  const allLabels = ['Now', ...dates.map(d => d.slice(5))];
+  const minP = Math.min(...allPrices) * 0.998;
+  const maxP = Math.max(...allPrices) * 1.002;
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+
+  const xScale = (i) => pad.left + (i / (allPrices.length - 1)) * chartW;
+  const yScale = (v) => pad.top + chartH - ((v - minP) / (maxP - minP)) * chartH;
+
+  // Grid
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 3; i++) {
+    const y = pad.top + (chartH / 3) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+    const val = maxP - ((maxP - minP) / 3) * i;
+    ctx.fillStyle = '#555';
+    ctx.font = '10px "JetBrains Mono"';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${currency}${val.toFixed(2)}`, W - pad.right + 4, y + 3);
+  }
+
+  // Date labels
+  ctx.fillStyle = '#444';
+  ctx.font = '10px "JetBrains Mono"';
+  ctx.textAlign = 'center';
+  allLabels.forEach((d, i) => {
+    ctx.fillText(d, xScale(i), H - 8);
+  });
+
+  // Area fill
+  const isUp = allPrices[allPrices.length - 1] >= allPrices[0];
+  const gradient = ctx.createLinearGradient(0, pad.top, 0, H - pad.bottom);
+  gradient.addColorStop(0, isUp ? 'rgba(16,185,129,0.18)' : 'rgba(239,68,68,0.18)');
+  gradient.addColorStop(1, 'rgba(10,10,10,0)');
+  ctx.beginPath();
+  ctx.moveTo(xScale(0), yScale(allPrices[0]));
+  allPrices.forEach((p, i) => ctx.lineTo(xScale(i), yScale(p)));
+  ctx.lineTo(xScale(allPrices.length - 1), H - pad.bottom);
+  ctx.lineTo(xScale(0), H - pad.bottom);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(xScale(0), yScale(allPrices[0]));
+  allPrices.forEach((p, i) => ctx.lineTo(xScale(i), yScale(p)));
+  ctx.strokeStyle = isUp ? '#10b981' : '#ef4444';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Dots
+  allPrices.forEach((p, i) => {
+    ctx.beginPath();
+    ctx.arc(xScale(i), yScale(p), i === 0 ? 4 : 3, 0, Math.PI * 2);
+    ctx.fillStyle = i === 0 ? '#e8e8e8' : (isUp ? '#10b981' : '#ef4444');
+    ctx.fill();
+    ctx.strokeStyle = '#0a0a0a';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  });
+}
+
+// Handle window resize for charts
 window.addEventListener('resize', () => {
   if (state.forecast?.predictions) {
     renderForecastChart(state.forecast.predictions, state.forecast.currency || '$');
+  }
+  if (state.research?.data?.predicted_prices?.length > 0) {
+    renderResearchChart(
+      state.research.data.predicted_prices,
+      state.research.data.pred_dates,
+      state.research.currency || '$',
+      state.research.data.price
+    );
   }
 });
