@@ -14,7 +14,7 @@ import yfinance as yf
 _CACHE_DIR = Path('.cache/stocks')
 
 
-def fetch_stock_data(ticker: str, period: str = 'max', ttl_seconds: int = 14400) -> pd.DataFrame:
+def fetch_stock_data(ticker: str, period: str = 'max', ttl_seconds: int = 900) -> pd.DataFrame:
     """
     Fetch stock history with local file caching.
     
@@ -22,8 +22,8 @@ def fetch_stock_data(ticker: str, period: str = 'max', ttl_seconds: int = 14400)
         ticker: Stock ticker symbol (e.g. 'AAPL')
         period: yfinance period string ('max', '6mo', '1y', etc.)
         ttl_seconds: Cache validity in seconds.
-                     Default 14400 (4 hours) — good for training.
-                     Use 900 (15 min) for live dashboard snapshots.
+                     Default 900 (15 min) — serves fresh data with a
+                     short cache window to avoid redundant API calls.
     
     Returns:
         DataFrame with OHLCV data (same as yf.Ticker.history())

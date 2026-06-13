@@ -73,7 +73,7 @@ def main():
     ).flatten()
 
     # Fetch last actual close to compound into dollar prices
-    raw_data = fetch_stock_data(args.ticker, period='6mo', ttl_seconds=14400)
+    raw_data = fetch_stock_data(args.ticker, period='6mo', ttl_seconds=900)
     last_raw_close = float(raw_data['Close'].iloc[-1])
 
     predicted_prices = []

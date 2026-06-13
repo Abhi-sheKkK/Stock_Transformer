@@ -200,7 +200,7 @@ async def predict_prices(
 
         # Fetch last raw close to compound into dollar prices
         from src.cache import fetch_stock_data
-        raw_data = fetch_stock_data(ticker, period='6mo', ttl_seconds=14400)
+        raw_data = fetch_stock_data(ticker, period='6mo', ttl_seconds=900)
         last_raw_close = float(raw_data['Close'].iloc[-1])
 
         # Compute adjusted prices

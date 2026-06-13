@@ -1,267 +1,311 @@
-  # 📈 Stock Price Prediction Using Transformer and Time2Vec
-**Author:** Abhishek Kotwani  
-**Project Type:** Time Series Forecasting  
-**Status:** Completed
----
+# AIFIS — AI Financial Intelligence System
 
-## 🔍 Overview
-This project implements a **Transformer-based model** for stock price prediction using historical stock data. It incorporates **Time2Vec** for time feature encoding, ensuring meaningful temporal representations. The dataset is fetched using **Yahoo Finance**, and the model is trained with **PyTorch**.  
+**A production-grade, Transformer-powered stock forecasting platform with live news verification, LLM sentiment adjustment, and an interactive web dashboard.**
 
-Unlike traditional **LSTMs** or **ARIMA models**, Transformers leverage **self-attention** to capture long-term dependencies in financial time-series data. This approach enhances prediction accuracy and better captures stock price trends compared to conventional models.
+**Author:** Abhishek Kotwani
+**Status:** Production Ready
 
 ---
 
-## 🚀 Features
-✅ **Fetch stock data from Yahoo Finance** automatically  
-✅ **Extract technical indicators** (EMA, MACD) for trend/momentum analysis  
-✅ **Implement Time2Vec** for effective time representation  
-✅ **Data normalization** using MinMaxScaler and Quantile Transformer  
-✅ **Transformer-based model** trained using PyTorch  
-✅ **Evaluate model performance** using RMSE & MAPE  
-✅ **Visualize predictions** for better interpretability
+## Overview
+
+AIFIS is a full-stack financial intelligence platform that combines a custom **Decoder-Only Causal Transformer** with real-time market data, multi-source news aggregation, and LLM-powered sentiment analysis to generate 5-day price forecasts for **41 US equities** across 6 sectors.
+
+The system goes beyond raw model predictions — it cross-references live news through a proprietary **Truth Engine**, then passes verified headlines to a **Groq-hosted Llama 3.1** model that applies bounded sentiment adjustments to the Transformer's output, producing both a baseline and an AI-enhanced forecast.
+
+Everything is served through a single FastAPI backend powering a responsive web dashboard with real-time charts, technical indicators, and AI-generated research reports.
 
 ---
 
-## 📊 Data Preparation
+## Architecture
 
-### **1️⃣ Data Source**
-- 💾 **Yahoo Finance:** Automatically fetches stock price data for training and testing.  
-- The dataset includes:
-  - **Open, High, Low, Close** prices
-  - **Volume**
-  - **Technical indicators** (Exponential Moving Average, MACD) are not included we have calculated them manually.   
-
-### **2️⃣ Data Preprocessing**
-- Compute **Exponential Moving Averages (EMA)** for trend tracking.
-- Calculate **MACD (Moving Average Convergence Divergence)** for momentum analysis.
-- Generate **time-based features** for improved predictions.
-- Normalize using:
-  - **MinMaxScaler** (macd , ema, time2vec)
-  - **Quantile Transformer** (close , open , high , low , volume)
--  choice of scaler depends on the stock, if very skewed data (common in stock price data) -log+quantile transform , if nearly normal distribution-MinMaxScaler.
-### **3️⃣ How to Load Data**
-- **yfinance:** Fetches stock data dynamically.
-```python
-if __name__ == "__main__":
-    # Prepare data
-    input_features, feature_scaler, time_scaler, close_scaler, scaled_close= create_input('TATAMOTORS.BO')
-    # Replace 'TATAMOTORS.BO' with the desired stock name.
 ```
----
-
-## **🛠 Model Implementation**
-**1️⃣ Model Architecture**
-  - The model is built using Transformer layers specifically adapted for time-series forecasting:
-  
-  - Multi-Head Self-Attention to capture dependencies between time steps.
-  - Positional Encoding & Time2Vec to preserve time-step order.
-  - Feed-Forward Layers for final prediction.
-  - Hubber Loss to optimize training.
-
-**2️⃣ Why Time2Vec?**
-  - Time2Vec is used to encode time information effectively, improving the model's ability to capture periodic patterns in stock data.
-
-**3️⃣ Model Training & Optimization**
-  - **Batch size:** 64
-  - **Optimizer:** Adam
-  - **Learning rate:** 0.0001
-  - **Loss function:** MSE Loss
-  - **Number of epochs:** 50-100 (adjustable based on performance)
-
-
----
-## 🏆 Model Evaluation
-- Train-test split with 80-20% data division.
-- **Metrics used for performance evaluation:**
-  - Root Mean Square Error (RMSE)
-  - Mean Absolute Percentage Error (MAPE)
-- **Visualization:**
-  - Actual vs. Predicted stock prices plotted using Matplotlib..
-  - Helps assess how well the model tracks stock price trends.
+┌─────────────────────────────────────────────────────────────┐
+│                    Frontend (Vanilla JS)                     │
+│    Charts · Dual Predictions · Research Reports · News      │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ HTTP
+┌──────────────────────────▼──────────────────────────────────┐
+│                   FastAPI Backend (api/)                     │
+│                                                             │
+│  /market/{ticker}    → Technical snapshot (RSI, MACD, BB)   │
+│  /predict/{ticker}   → Transformer + LLM-adjusted forecast  │
+│  /news/{ticker}      → Truth-verified news feed             │
+│  /research/{ticker}  → Full AI research report              │
+│  /analyze/{ticker}   → Combined analysis                    │
+└────┬──────────┬───────────┬──────────┬──────────────────────┘
+     │          │           │          │
+     ▼          ▼           ▼          ▼
+  yfinance   News APIs   Transformer  Groq LLM
+  (market)   (GNews,     (PyTorch)    (Llama 3.1)
+             Finnhub,
+             NewsAPI)
+```
 
 ---
-## Tech Stack
 
-- **Python**
-- **PyTorch** (for transformer model)
-- **Pandas** (data preprocessing)
-- **Matplotlib** (visualization)
-- **Scikit-learn** (data normalization & preprocessing)
-- **Yfinance**(for stock price data)
+## Supported Stock Universe (41 Tickers)
+
+| Sector | Tickers |
+|---|---|
+| **Technology & Semiconductors** | AAPL, MSFT, NVDA, AVGO, ORCL, AMD, CRM |
+| **Communication & Digital Media** | GOOGL, META, NFLX, DIS, TMUS, CMCSA |
+| **Financials** | JPM, BAC, MS, GS, V, MA, AXP |
+| **Healthcare** | LLY, UNH, JNJ, MRK, ABBV, TMO, ISRG |
+| **Consumer** | AMZN, TSLA, WMT, COST, HD, NKE, KO |
+| **Industrials & Energy** | XOM, CVX, CAT, GE, UNP, HON, ETN |
+
 ---
 
-## 🔧 Installation & Setup
-1️⃣ Clone the Repository
+## Key Features
+
+### Transformer Model
+- **Decoder-Only Causal Architecture** (GPT-style) with causal self-attention masking
+- Learnable positional embeddings with stock-specific and sector-specific conditioning via `nn.Embedding` layers
+- Pre-LayerNorm, GELU activations, and high dropout (0.25) — tuned for noisy financial data
+- Predicts **5-day log returns** from a 60-day input window
+- Trained globally across all 41 stocks — shared attention weights learn cross-asset patterns
+
+### Scale-Agnostic Feature Engineering
+All input features are stationary and scale-independent, enabling a single global model to handle stocks at any price level:
+
+| Category | Features |
+|---|---|
+| **Returns** | Close/Open/High/Low log returns |
+| **Volatility** | Bollinger Band Squeeze, Distance to Channel High, Volume Force Multiplier |
+| **Trend** | Trend Alignment Ratio (EMA50/EMA20), Pullback Proximity |
+| **Mean Reversion** | Price Z-Score Distance, RSI Asymmetry |
+| **Macro** | S&P 500 log return (beta shield), VIX relative height |
+| **Temporal** | Cyclical day-of-week and month-of-year encodings (sin/cos) |
+
+### News Truth Engine
+A 3-pillar verification system that scores every scraped headline before it reaches the model:
+1. **Cross-Source Consistency** — Matches headlines across yfinance, NewsAPI, and Finnhub to verify corroboration
+2. **Source Credibility** — Weighted scoring based on outlet reliability (yfinance: 1.0, Finnhub: 0.9, NewsAPI: 0.7)
+3. **Temporal Freshness** — Exponential decay penalizes stale articles
+
+Only articles passing the truth threshold are forwarded to the LLM for sentiment analysis.
+
+### LLM Sentiment Adjustment (Groq + Llama 3.1)
+- The Transformer's raw 5-day log returns are sent to Llama 3.1 8B along with truth-verified headlines
+- The LLM suggests per-day adjustments within a **strict ±0.3% delta boundary**
+- Programmatic clamping in Python enforces the boundary — the LLM prompt alone is never trusted
+- The UI renders both the **Original Prediction** and the **AI-Enhanced Prediction** side by side
+
+### AI Research Reports
+- Full-length equity research reports generated via Groq LLM
+- Combines technical indicators, sentiment analysis, and Transformer forecasts into structured JSON
+- Includes: Executive Summary, Technical Analysis, Sentiment Drivers, Price Forecast, Risk Factors, Catalysts, and a final Rating (Strong Buy → Strong Sell)
+- Falls back to a deterministic data-only report if the LLM is unavailable
+
+### Interactive Web Dashboard
+- Real-time market snapshot with RSI, MACD, Bollinger Bands, ATR, VWAP, and volume analysis
+- Dual-line prediction chart (dashed baseline + solid AI-adjusted)
+- Prediction schedule table with Original Price and AI Enhanced Price columns
+- Live news feed with truth scores and source badges
+- LLM Sentiment Context display showing the model's rationale
+- Fully responsive design with dark mode, glassmorphism, and micro-animations
+
+---
+
+## Project Structure
+
+```
+Stock_Transformer/
+├── api/                        # FastAPI backend
+│   ├── main.py                 # App entry point, CORS, static file serving
+│   └── routes/
+│       ├── market.py           # GET  /market/{ticker}
+│       ├── predict.py          # POST /predict/{ticker}
+│       ├── news.py             # GET  /news/{ticker}
+│       ├── research.py         # POST /research/{ticker}
+│       └── analyze.py          # POST /analyze/{ticker}
+│
+├── src/                        # Core Python modules
+│   ├── model.py                # StockTransformer (decoder-only causal)
+│   ├── features.py             # Scale-agnostic feature engineering
+│   ├── train.py                # Training loop with TensorBoard logging
+│   ├── news.py                 # Multi-source scraper + Truth Engine
+│   ├── sentiment.py            # FinBERT / keyword-fallback sentiment
+│   ├── cache.py                # yfinance data caching (15-min TTL)
+│   ├── config.py               # Centralized .env-driven configuration
+│   ├── data.py                 # Dataset and DataLoader utilities
+│   └── visualization.py        # Matplotlib plotting helpers
+│
+├── frontend/                   # Single-page web dashboard
+│   ├── index.html
+│   ├── styles.css
+│   └── app.js
+│
+├── models/                     # Pre-fitted scalers (.joblib)
+├── best_model.pth              # Trained model weights
+├── main.py                     # CLI training entry point
+├── predict.py                  # CLI prediction script
+├── requirements.txt            # Python dependencies
+├── build_deployable.sh         # Automated deployment packager
+├── .env.example                # Environment variable template
+└── .gitignore
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
+- Python 3.9+
+- pip
+
+### 1. Clone the Repository
 ```bash
 git clone https://github.com/Abhi-sheKkK/Stock_Transformer.git
-cd Stock_price_prediction_Vanilla_Transformer
+cd Stock_Transformer
 ```
-2️⃣ Install Dependencies
+
+### 2. Create Virtual Environment
 ```bash
+python3 -m venv stock_env
+source stock_env/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
-3️⃣ Run the Model
 
+### 3. Configure Environment
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set your API keys:
+```env
+# Required for LLM sentiment adjustment
+GROQ_API_KEY=your_groq_api_key_here
+
+# Optional — enriches news coverage
+NEWS_API_KEY=your_newsapi_key
+FINNHUB_API_KEY=your_finnhub_key
+```
+
+### 4. Launch the Application
+```bash
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+Open your browser at **http://localhost:8000** — the dashboard loads automatically.
 
 ---
 
-## 📌 Usage
-1.  **Select a Stock:** Change the stock name in the script.
-2.  **Train the Model:** Run the training script to train on the specified stock.
-3.  **Evaluate Performance**: Check RMSE and MAPE values.
-4.  **Visualize Predictions:** View actual vs. predicted prices.
+## Usage
 
----
-## 🔮 Trading Inference Tool (CLI)
-Use the newly added `predict.py` script to fetch automated stock outlooks for the upcoming week based on the trained model.
+### Web Dashboard
+1. Select a stock ticker from the dropdown (e.g., AAPL, NFLX, TSLA)
+2. View the live market snapshot with technical indicators and signal interpretations
+3. Click **Run Forecast** to generate the 5-day prediction with LLM sentiment adjustment
+4. Click **Generate Research Report** for a full AI equity analysis
 
-Run the script from your environment (ensure `best_model.pth` exists in your working directory):
+### CLI Prediction
 ```bash
 python predict.py --ticker AAPL
 ```
-This will automatically:
-- Fetch the latest stock data for AAPL
-- Compute required features (RSI, Bollinger Bands, ATR, VWAP)
-- Scale the 100-day required history
-- Autoregressively generate the expected prices for the next 5 days!
+Outputs the 5-day price forecast directly to terminal.
 
----
-## 🌐 Interactive Web UI Dashboard
-A custom HTML/CSS/JS web dashboard is available for market data visualization, sentiment analysis, and stock price forecasting!
-
-### Launching the Application
-The frontend is built using Vanilla JS/CSS and served by a **FastAPI backend**.
-
-1️⃣ Run the backend server:
+### CLI Training
 ```bash
-python -m uvicorn api.main:app --reload
+python main.py
 ```
-or:
+Trains the global Transformer model across all 41 stocks with TensorBoard logging.
+
+---
+
+## Caching Strategy
+
+All external API calls follow a **15-minute cache window**:
+
+| Data Source | Cache Location | TTL |
+|---|---|---|
+| Stock prices (yfinance) | `.cache/stocks/` | 15 minutes |
+| News articles (GNews, Finnhub, NewsAPI) | `.cache/news/` | 15 minutes |
+
+- **First request**: Fetches fresh data from the API and saves to local cache
+- **Within 15 minutes**: Serves instantly from cache (no API call)
+- **After 15 minutes**: Automatically fetches fresh data on next request
+
+---
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Service health check |
+| `GET` | `/market/{ticker}` | Live technical snapshot (RSI, MACD, BB, ATR, VWAP) |
+| `GET` | `/news/{ticker}` | Truth-verified news feed with sentiment scores |
+| `POST` | `/predict/{ticker}` | 5-day forecast (original + AI-enhanced prices) |
+| `POST` | `/research/{ticker}` | Full AI-generated research report |
+| `POST` | `/analyze/{ticker}` | Combined analysis with reasoning |
+
+---
+
+## Deployment
+
+### Quick Deploy
 ```bash
-uvicorn api.main:app --reload
+chmod +x build_deployable.sh
+./build_deployable.sh
 ```
 
-2️⃣ Open your browser and navigate to:
+This creates `Stock_Transformer_deploy.zip` containing only the files needed for production (excludes virtual environments, caches, git history, and dev files).
+
+### On Your Server
+```bash
+unzip Stock_Transformer_deploy.zip -d app && cd app
+cp .env.example .env        # Configure API keys
+pip install -r requirements.txt
+uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 2
 ```
-http://127.0.0.1:8000
-```
-This serves the frontend at `index.html` from the `frontend/` directory.
 
-### Features:
-- **Interactive Charts**: Drawn dynamically via HTML5 canvas using the predicted prices.
-- **Market Snapshot**: Real-time Indicators (MACD, RSI, ATR, VWAP, BB) and signals.
-- **News & Sentiment Analyzer**: Live article aggregation with FinBERT sentiment scores and confidence levels.
-- **AI Forecasting & Reasoning**: Combines technicals, news sentiment, and the Stock Transformer forecasts to generate strategic AI-based predictions and rationale.
-
----
-## 📈Predictions
-  - **Crude_oil** (50 Epochs Full History, V2)
-      - Test MSE: 3.9364  
-        Test RMSE: 1.9840  
-        Test MAPE: 1.79%  
-        Directional Accuracy: 52.34%
-        
-      ![Crude oil](results/predictions_vs_actual.png)
-    
-  - **Tata_motors**
-      - Test MSE: 871.0430  
-        Test RMSE: 29.5134  
-        Test MAPE: 3.73%
-        
-        ![Tata_Motors](predictions/tata_motors/predicted_vs_actual.png)
-        
-  - **Tesla**
-      - Test MSE: 129.6440  
-        Test RMSE: 11.3861  
-        Test MAPE: 3.28%
-        
-        ![Tesla](predictions/tesla/predicted_vs_actual.png)
-  - **Apple**
-      - Test MSE: 367.5187  
-        Test RMSE: 19.1708  
-        Test MAPE: 8.58%
-        
-        ![Apple](predictions/Apple/actual_vs_predicted_price.png)
-
- 
-## ✨ Recent Enhancements (v2.0)
-The project has recently been refactored into a modular Python codebase with the following major upgrades:
-1. **Modular Codebase & CLI**: Extracted the notebook into `src/` modules (`data.py`, `features.py`, `model.py`, `train.py`) and added a `main.py` entry point.
-2. **Trainable Time2Vec**: The `Time2Vec` embedding layer has been moved natively into the `StockTransformer` with trainable `nn.Parameter` frequencies.
-3. **Advanced Technical Indicators**: Built automated extraction for RSI (14-day), Bollinger Bands (20-day), ATR, and VWAP.
-4. **Causal Masking**: Added an explicit `tgt_mask` to the Transformer Decoder to prevent predicting the future.
-5. **MLOps**: Integrated TensorBoard for experiment tracking and introduced a new **Directional Accuracy** validation metric!
+### Production Recommendations
+- Place uvicorn behind **NGINX** for SSL termination and static asset caching
+- Restrict CORS origins in `api/main.py` from `"*"` to your specific domain
+- Use a process manager (systemd / PM2) to keep the server running
+- The `.cache/` directory is auto-created at runtime — no manual setup needed
 
 ---
 
-## 🛠 Future Enhancements
+## Tech Stack
 
-1. **Hybrid Model Integration**
-
-   - Combine the Transformer with other models (e.g., LSTMs, CNNs, or traditional regression- 
-    based models) to leverage their strengths and improve prediction accuracy.
-
-2. **Sudden Price Surge Prediction**
-
-   - Enhance the model to better predict sudden spikes in stock prices, which are currently 
-     underestimated.
-     
----
-## Key Challenges and Solutions
-
-### 1. Data Scaling and Preprocessing
-#### Challenges:
-- Traditional min-max scaling failed to adapt to changing market regimes.
-- Extreme price movements led to scaling instability.
-- Different features (price, volume, indicators) required different scaling approaches.
-
-#### Solutions:
-- Implemented adaptive scaling with sliding windows.
-- Applied log transformation before scaling for price data.
-- Quantile transformer on the log transformations.
-- Developed feature-specific scaling strategies.
-
+| Layer | Technology |
+|---|---|
+| **Model** | PyTorch (Decoder-Only Causal Transformer) |
+| **Backend** | FastAPI + Uvicorn |
+| **Frontend** | Vanilla HTML/CSS/JavaScript (Canvas charts) |
+| **LLM** | Groq Cloud (Llama 3.1 8B Instant) |
+| **Data** | yfinance, NewsAPI, Finnhub |
+| **Sentiment** | FinBERT (optional) / Keyword fallback |
+| **Config** | python-dotenv (.env driven) |
+| **Scaling** | scikit-learn StandardScaler + custom Scale100Scaler |
 
 ---
 
-### 2. Loss Function Design
-#### Challenges:
-- Standard MSE loss led to conservative predictions.
-- Difficulty in balancing short-term vs long-term accuracy.
-- Inadequate handling of directional movements.
-- Poor performance during market regime changes.
+## Environment Variables
 
-#### Solutions:
-- Huber loss for robustness.
-
-
----
-
-
-### 3. Time2Vec Optimization
-#### Challenges:
-- Finding the best frequencies and phase shifts for Time2Vec embedding manually is difficult and suboptimal.
-
-#### Solutions:
-- Converted the Time2Vec frequencies and phase shifts to PyTorch `nn.Parameter` tensors, allowing the model to intrinsically learn the optimal time frequencies via backpropagation during training.
+| Variable | Required | Description |
+|---|---|---|
+| `GROQ_API_KEY` | Yes | Groq Cloud API key for LLM sentiment adjustment |
+| `GROQ_MODEL` | No | Model name (default: `llama-3.1-8b-instant`) |
+| `NEWS_API_KEY` | YES | NewsAPI key for additional news coverage |
+| `FINNHUB_API_KEY` | YES | Finnhub key for additional news coverage |
+| `NEWS_CACHE_TTL` | No | News cache TTL in minutes (default: `15`) |
+| `OLLAMA_BASE_URL` | No | Ollama endpoint for local LLM (default: `http://localhost:11434`) |
+| `API_HOST` | No | Server bind host (default: `0.0.0.0`) |
+| `API_PORT` | No | Server bind port (default: `8000`) |
 
 ---
 
+## License
 
-
-## 🐝 License
 This project is licensed under the MIT License.
 
 ---
 
-## 🤝 Contributing
-Feel free to submit issues or pull requests for improvements!
+## Contact
 
----
-
-## 💎 Contact
-For any queries, feel free to reach out at:
-- 📧 Email: abhishek.9.kotwani@gmail.com
-- 🔗 GitHub: [Abhi-sheKkK](https://github.com/Abhi-sheKkK)
-
-
+- **Email:** abhishek.9.kotwani@gmail.com
+- **GitHub:** [Abhi-sheKkK](https://github.com/Abhi-sheKkK)

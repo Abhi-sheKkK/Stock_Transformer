@@ -201,18 +201,18 @@ def create_input(stock_name, scalers_path=None):
     Create scale-agnostic relative input features from raw stock data.
     """
     # 1. Fetch raw stock history
-    stock_data = fetch_stock_data(stock_name, period='max', ttl_seconds=14400)
+    stock_data = fetch_stock_data(stock_name, period='max', ttl_seconds=900)
     if stock_data.empty:
         raise ValueError(f"No data found for ticker {stock_name}")
         
     # 2. Fetch GSPC/SPY for market benchmark
     market_data = None
     try:
-        market_data = fetch_stock_data('^GSPC', period='max', ttl_seconds=14400)
+        market_data = fetch_stock_data('^GSPC', period='max', ttl_seconds=900)
     except Exception as e:
         print(f"Warning: Could not fetch ^GSPC with period='max' ({e}). Retrying with period='10y'.")
         try:
-            market_data = fetch_stock_data('^GSPC', period='10y', ttl_seconds=14400)
+            market_data = fetch_stock_data('^GSPC', period='10y', ttl_seconds=900)
         except Exception as e2:
             print(f"Warning: Could not fetch ^GSPC with period='10y' ({e2}). Falling back to zero market returns.")
             
@@ -229,11 +229,11 @@ def create_input(stock_name, scalers_path=None):
     # 2b. Fetch VIX data for market volatility environment
     vix_data = None
     try:
-        vix_data = fetch_stock_data('^VIX', period='max', ttl_seconds=14400)
+        vix_data = fetch_stock_data('^VIX', period='max', ttl_seconds=900)
     except Exception as e:
         print(f"Warning: Could not fetch ^VIX with period='max' ({e}). Retrying with period='10y'.")
         try:
-            vix_data = fetch_stock_data('^VIX', period='10y', ttl_seconds=14400)
+            vix_data = fetch_stock_data('^VIX', period='10y', ttl_seconds=900)
         except Exception as e2:
             print(f"Warning: Could not fetch ^VIX with period='10y' ({e2}). Falling back to default VIX.")
             
