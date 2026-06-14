@@ -2,6 +2,7 @@ import argparse
 import torch
 import pandas as pd
 import numpy as np
+from datetime import datetime
 from torch.utils.data import DataLoader
 from src.features import create_input, TICKERS, save_scalers
 from src.data import GlobalStockDataset
@@ -22,7 +23,13 @@ def main():
     parser.add_argument('--dropout', type=float, default=0.25, help='Dropout rate')
     args = parser.parse_args()
 
+    # Dynamic year splits — automatically shift forward as time passes
+    current_year = datetime.now().year
+    val_year = current_year - 1
+    train_cutoff = val_year - 1  # Train on everything up to and including this year
+
     print(f"Preparing global multi-stock dataset for {len(TICKERS)} tickers...")
+    print(f"  Split: Train ≤ {train_cutoff} | Val = {val_year} | Test ≥ {current_year}")
 
     train_dfs, val_dfs, test_dfs = [], [], []
 
@@ -35,9 +42,9 @@ def main():
         try:
             df, _, _, _, _ = create_input(ticker, scalers_path='models')
 
-            train_part = df[df.index.year <= 2023]
-            val_part = df[df.index.year == 2024]
-            test_part = df[df.index.year >= 2025]
+            train_part = df[df.index.year <= train_cutoff]
+            val_part = df[df.index.year == val_year]
+            test_part = df[df.index.year >= current_year]
 
             if len(train_part) > 0:
                 train_dfs.append(train_part)
