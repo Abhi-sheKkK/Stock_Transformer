@@ -9,6 +9,7 @@ from src.data import GlobalStockDataset
 from src.model import StockTransformer
 from src.train import train_and_evaluate
 
+
 def main():
     parser = argparse.ArgumentParser(description="Train Multi-Stock Global Transformer (Decoder-Only)")
     parser.add_argument('--epochs', type=int, default=10, help='Number of training epochs')
@@ -67,8 +68,8 @@ def main():
     test_dataset = GlobalStockDataset(test_dfs, seq_length=args.seq_length, out_seq_len=args.out_seq_len)
 
     print(f"Training samples: {len(train_dataset):,}")
-    print(f"Validation (2024) samples: {len(val_dataset):,}")
-    print(f"Test (2025+) samples: {len(test_dataset):,}")
+    print(f"Validation ({val_year}) samples: {len(val_dataset):,}")
+    print(f"Test ({current_year}+) samples: {len(test_dataset):,}")
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)

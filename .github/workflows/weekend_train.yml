@@ -1,0 +1,65 @@
+name: Weekly Model Retraining Pipeline
+
+on:
+  schedule:
+    - cron: '0 2 * * 6'  # Every Saturday at 2:00 AM UTC
+  workflow_dispatch:       # Manual trigger button in GitHub UI
+
+jobs:
+  train-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Clear Stale Cache
+        run: rm -rf .cache/stocks/*
+
+      - name: Train Model
+        run: python main.py --epochs 15
+        # Outputs: best_model.pth, models/*.joblib
+
+      - name: Upload Weights to Supabase Storage
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_PROJECT_URL: https://oqyqnndynmgthsmmzhpy.supabase.co
+        run: |
+          echo "Uploading best_model.pth to Supabase..."
+          curl -f -X POST \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            -H "x-upsert: true" \
+            -F "file=@best_model.pth" \
+            "$SUPABASE_PROJECT_URL/storage/v1/object/models/best_model.pth"
+          echo ""
+          echo "Uploading scalers..."
+          for f in models/feature_scaler.joblib models/time_scaler.joblib models/close_scaler.joblib; do
+            if [ -f "$f" ]; then
+              fname=$(basename "$f")
+              curl -f -X POST \
+                -H "Authorization: Bearer $SUPABASE_KEY" \
+                -H "x-upsert: true" \
+                -F "file=@$f" \
+                "$SUPABASE_PROJECT_URL/storage/v1/object/models/$fname"
+              echo "  Uploaded $fname"
+            fi
+          done
+          echo "All artifacts uploaded."
+
+      - name: Trigger Render Redeploy
+        if: ${{ secrets.RENDER_DEPLOY_HOOK != '' }}
+        run: |
+          curl -f -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+          echo " Render redeploy triggered."

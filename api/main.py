@@ -1,8 +1,13 @@
 """
 FastAPI application entry point.
 AI Financial Intelligence System backend.
+
+On startup, downloads the latest model weights from Supabase Storage
+so the deployed server always uses the most recently trained checkpoint.
 """
 
+import os
+import urllib.request
 import requests
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,15 +20,35 @@ from fastapi.responses import FileResponse
 from api.routes import market, news, predict, analyze, research
 
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+_MODEL_PATH = Path(__file__).resolve().parent.parent / "best_model.pth"
+
+# Supabase public bucket URL for trained weights
+SUPABASE_MODEL_URL = os.getenv(
+    "SUPABASE_MODEL_URL",
+    "https://oqyqnndynmgthsmmzhpy.supabase.co/storage/v1/object/public/models/best_model.pth"
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
-    print("🚀 AI Financial Intelligence System starting...")
+    print(" AI Financial Intelligence System starting...")
     print("   Loading services...")
+
+    # Download latest weights from Supabase if no local file exists
+    if not _MODEL_PATH.exists():
+        print(f"   ⬇ Downloading model weights from Supabase...")
+        try:
+            urllib.request.urlretrieve(SUPABASE_MODEL_URL, str(_MODEL_PATH))
+            print(f"    Weights downloaded to {_MODEL_PATH}")
+        except Exception as e:
+            print(f"    Could not download weights: {e}")
+            print(f"   The server will still start but /predict may fail.")
+    else:
+        print(f" Local model weights found at {_MODEL_PATH}")
+
     yield
-    print("👋 Shutting down...")
+    print(" Shutting down...")
 
 
 app = FastAPI(
@@ -68,6 +93,7 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "AI Financial Intelligence System",
+        "model_loaded": _MODEL_PATH.exists(),
         "ollama": ollama_status,
     }
 
@@ -79,4 +105,3 @@ if _FRONTEND_DIR.exists():
     @app.get("/")
     async def serve_frontend():
         return FileResponse(str(_FRONTEND_DIR / "index.html"))
-
