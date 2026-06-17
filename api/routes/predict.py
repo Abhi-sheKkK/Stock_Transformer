@@ -45,22 +45,51 @@ async def predict_prices(
                 detail=f"Not enough data for {ticker}. Need {seq_length} days, got {len(input_features)}.",
             )
 
-        # Load model checkpoint
+        # Load model checkpoint with global caching to prevent OOM / RAM spikes
+        global _cached_model, _cached_model_mtime
         model_path = "best_model.pth"
         if not os.path.exists(model_path):
             raise HTTPException(status_code=404, detail="No trained model found. Train the model first.")
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        checkpoint = torch.load(model_path, map_location=device)
+        mtime = os.path.getmtime(model_path)
 
-        # Auto-detect dimensions from checkpoint to avoid size mismatches
-        ckpt_max_seq_len = checkpoint['pos_embed'].shape[1]
-        ckpt_d_model = checkpoint['input_proj.weight'].shape[0]
-        ckpt_stock_embed_dim = checkpoint['stock_embed.weight'].shape[1]
-        ckpt_num_stocks = checkpoint['stock_embed.weight'].shape[0]
-        ckpt_sector_embed_dim = checkpoint['sector_embed.weight'].shape[1]
-        ckpt_num_sectors = checkpoint['sector_embed.weight'].shape[0]
-        ckpt_prediction_horizon = checkpoint['output_head.4.weight'].shape[0]
+        if '_cached_model' not in globals() or _cached_model is None or _cached_model_mtime != mtime:
+            print(f"🔄 Loading model weights from {model_path} into memory...")
+            checkpoint = torch.load(model_path, map_location=device)
+
+            # Auto-detect dimensions from checkpoint to avoid size mismatches
+            ckpt_max_seq_len = checkpoint['pos_embed'].shape[1]
+            ckpt_d_model = checkpoint['input_proj.weight'].shape[0]
+            ckpt_stock_embed_dim = checkpoint['stock_embed.weight'].shape[1]
+            ckpt_num_stocks = checkpoint['stock_embed.weight'].shape[0]
+            ckpt_sector_embed_dim = checkpoint['sector_embed.weight'].shape[1]
+            ckpt_num_sectors = checkpoint['sector_embed.weight'].shape[0]
+            ckpt_prediction_horizon = checkpoint['output_head.4.weight'].shape[0]
+
+            model = StockTransformer(
+                num_continuous_features=len([c for c in input_features.columns if c not in ('Stock_ID', 'Sector_ID', 'Target_Log_Return')]),
+                d_model=ckpt_d_model,
+                nhead=4,
+                num_layers=4,
+                dropout=0.25,
+                prediction_horizon=ckpt_prediction_horizon,
+                max_seq_len=ckpt_max_seq_len,
+                stock_embed_dim=ckpt_stock_embed_dim,
+                num_stocks=ckpt_num_stocks,
+                sector_embed_dim=ckpt_sector_embed_dim,
+                num_sectors=ckpt_num_sectors,
+            )
+            model.load_state_dict(checkpoint)
+            model.to(device)
+            model.eval()
+
+            _cached_model = model
+            _cached_model_mtime = mtime
+            _cached_max_seq_len = ckpt_max_seq_len
+        else:
+            model = _cached_model
+            ckpt_max_seq_len = _cached_max_seq_len
 
         # Lookback sequence length is max_seq_len - 10 (or capped by features length)
         seq_length = ckpt_max_seq_len - 10
@@ -79,25 +108,6 @@ async def predict_prices(
         x_temporal = torch.tensor(x_cont, dtype=torch.float32).unsqueeze(0).to(device)
         stock_id_t = torch.tensor([stock_id], dtype=torch.long).to(device)
         sector_id_t = torch.tensor([sector_id], dtype=torch.long).to(device)
-
-        num_continuous = len(continuous_cols)
-
-        model = StockTransformer(
-            num_continuous_features=num_continuous,
-            d_model=ckpt_d_model,
-            nhead=4,
-            num_layers=4,
-            dropout=0.25,
-            prediction_horizon=ckpt_prediction_horizon,
-            max_seq_len=ckpt_max_seq_len,
-            stock_embed_dim=ckpt_stock_embed_dim,
-            num_stocks=ckpt_num_stocks,
-            sector_embed_dim=ckpt_sector_embed_dim,
-            num_sectors=ckpt_num_sectors,
-        )
-        model.load_state_dict(checkpoint)
-        model.to(device)
-        model.eval()
 
         # Single forward pass -> all 5 days predicted at once
         with torch.no_grad():

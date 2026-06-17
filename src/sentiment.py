@@ -67,63 +67,68 @@ class SentimentReport:
 
 
 # ---------------------------------------------------------------------------
-# FinBERT (lazy-loaded)
+# FinBERT (HF API and Local)
 # ---------------------------------------------------------------------------
+
+import os
+import requests
 
 _finbert_pipeline = None
 
 
-def _load_finbert():
-    global _finbert_pipeline
-    if _finbert_pipeline is not None:
-        return _finbert_pipeline
-    try:
-        from transformers import pipeline
-        _finbert_pipeline = pipeline(
-            "sentiment-analysis",
-            model="ProsusAI/finbert",
-            return_all_scores=True,
-            truncation=True,
-            max_length=512,
-        )
-        logger.info("FinBERT loaded successfully")
-        return _finbert_pipeline
-    except Exception as e:
-        logger.warning(f"FinBERT unavailable, using keyword fallback: {e}")
+def _score_with_hf_api(texts: list) -> Optional[list]:
+    """Score headlines using Hugging Face Serverless Inference API for ProsusAI/finbert."""
+    hf_token = os.getenv("HF_API_KEY") or os.getenv("HF_TOKEN")
+    if not hf_token:
+        logger.info("No HF_API_KEY or HF_TOKEN environment variable found. Skipping Hugging Face API.")
         return None
 
+    url = "https://api-inference.huggingface.co/models/ProsusAI/finbert"
+    headers = {"Authorization": f"Bearer {hf_token}"}
+    
+    try:
+        response = requests.post(url, headers=headers, json={"inputs": texts}, timeout=10)
+        if response.status_code == 200:
+            predictions = response.json()
+            if not isinstance(predictions, list):
+                return None
+            
+            # Normalize single input response
+            if len(texts) == 1 and predictions and isinstance(predictions[0], dict):
+                predictions = [predictions]
+                
+            results = []
+            for i, output in enumerate(predictions):
+                if not isinstance(output, list):
+                    continue
+                scores_map = {item["label"].lower(): item["score"] for item in output}
+                pos = scores_map.get("positive", 0)
+                neg = scores_map.get("negative", 0)
+                neu = scores_map.get("neutral", 0)
+                composite = pos - neg
 
-def _score_with_finbert(texts: list) -> list:
-    pipe = _load_finbert()
-    if pipe is None:
-        return _score_with_keywords(texts)
+                if pos > neg and pos > neu:
+                    label = "bullish"
+                elif neg > pos and neg > neu:
+                    label = "bearish"
+                else:
+                    label = "neutral"
 
-    results = []
-    for text in texts:
-        try:
-            output = pipe(text[:512])[0]
-            scores_map = {item["label"].lower(): item["score"] for item in output}
-            pos = scores_map.get("positive", 0)
-            neg = scores_map.get("negative", 0)
-            neu = scores_map.get("neutral", 0)
-            composite = pos - neg
-
-            if pos > neg and pos > neu:
-                label = "bullish"
-            elif neg > pos and neg > neu:
-                label = "bearish"
-            else:
-                label = "neutral"
-
-            results.append(SentimentScore(
-                text=text[:100], label=label,
-                confidence=round(max(pos, neg, neu), 3),
-                score=round(composite, 3),
-            ))
-        except Exception as e:
-            logger.warning(f"FinBERT scoring error: {e}")
-            results.append(SentimentScore(text=text[:100], label="neutral", confidence=0.5, score=0.0))
-    return results
+                results.append(SentimentScore(
+                    text=texts[i][:100], label=label,
+                    confidence=round(max(pos, neg, neu), 3),
+                    score=round(composite, 3),
+                ))
+            return results
+        elif response.status_code == 503:
+            logger.warning("Hugging Face FinBERT model is loading/starting up. Falling back.")
+            return None
+        else:
+            logger.warning(f"Hugging Face API failed (Status {response.status_code}): {response.text}")
+            return None
+    except Exception as e:
+        logger.warning(f"Error calling Hugging Face API: {e}")
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -173,13 +178,22 @@ def _score_with_keywords(texts: list) -> list:
 # Public API
 # ---------------------------------------------------------------------------
 
-def score_headlines(headlines: list, use_finbert: bool = True) -> list:
-    """Score headlines for financial sentiment."""
+def score_headlines(headlines: list, use_finbert: bool = False) -> tuple:
+    """
+    Score headlines for financial sentiment.
+    Returns:
+        (list of SentimentScore, method_name)
+    """
     if not headlines:
-        return []
-    if use_finbert:
-        return _score_with_finbert(headlines)
-    return _score_with_keywords(headlines)
+        return [], "none"
+
+    # 1. Try Hugging Face Inference API first if token exists
+    hf_results = _score_with_hf_api(headlines)
+    if hf_results is not None:
+        return hf_results, "finbert-api"
+
+    # 2. Fallback to fast keyword scoring
+    return _score_with_keywords(headlines), "keyword"
 
 
 def get_sentiment_report(ticker: str, headlines: Optional[list] = None) -> SentimentReport:
@@ -194,7 +208,7 @@ def get_sentiment_report(ticker: str, headlines: Optional[list] = None) -> Senti
     if not headlines:
         return SentimentReport(ticker=ticker)
 
-    scores = score_headlines(headlines)
+    scores, method = score_headlines(headlines)
 
     bull = sum(1 for s in scores if s.label == "bullish")
     bear = sum(1 for s in scores if s.label == "bearish")
@@ -207,8 +221,6 @@ def get_sentiment_report(ticker: str, headlines: Optional[list] = None) -> Senti
         overall = "bearish"
     else:
         overall = "neutral"
-
-    method = "finbert" if _finbert_pipeline is not None else "keyword"
 
     return SentimentReport(
         ticker=ticker, overall_label=overall, overall_score=avg_score,
