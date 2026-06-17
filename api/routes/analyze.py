@@ -4,6 +4,8 @@ Full AI-powered analysis combining prediction + reasoning + strategy.
 (Fully implemented in Phase 2 with Ollama/Llama 3)
 """
 
+import traceback
+
 from fastapi import APIRouter, HTTPException
 
 from src.features import get_market_snapshot
@@ -50,4 +52,5 @@ async def full_analysis(ticker: str):
     except HTTPException:
         raise
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")

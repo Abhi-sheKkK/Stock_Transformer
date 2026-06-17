@@ -2,6 +2,7 @@
 Market snapshot API routes.
 """
 
+import traceback
 from fastapi import APIRouter, HTTPException
 
 from src.features import get_market_snapshot
@@ -24,4 +25,6 @@ async def market_snapshot(ticker: str):
     except HTTPException:
         raise
     except Exception as e:
+        # Print full traceback to Render logs for debugging
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to fetch market data: {str(e)}")
