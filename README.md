@@ -1,6 +1,6 @@
-# AIFIS — AI Financial Intelligence System
+# AIFIS — AI powered Financial Intelligence System
 
-**A production-grade, Transformer-powered stock forecasting platform with live news verification, LLM sentiment adjustment, and an interactive web dashboard.**
+**A Transformer-powered stock forecasting platform with live news verification, LLM sentiment adjustment, and an interactive web dashboard.**
 
 ---
 
