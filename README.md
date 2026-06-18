@@ -2,9 +2,6 @@
 
 **A production-grade, Transformer-powered stock forecasting platform with live news verification, LLM sentiment adjustment, and an interactive web dashboard.**
 
-**Author:** Abhishek Kotwani
-**Status:** Production Ready
-
 ---
 
 ## Overview
