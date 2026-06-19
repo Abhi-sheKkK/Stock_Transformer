@@ -46,7 +46,7 @@ async def predict_prices(
             )
 
         # Load model checkpoint with global caching to prevent OOM / RAM spikes
-        global _cached_model, _cached_model_mtime
+        global _cached_model, _cached_model_mtime, _cached_max_seq_len
         model_path = "best_model.pth"
         if not os.path.exists(model_path):
             raise HTTPException(status_code=404, detail="No trained model found. Train the model first.")

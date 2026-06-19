@@ -60,7 +60,7 @@ def _gather_prediction(ticker: str) -> dict:
             input_features, feature_scaler, time_scaler, close_scaler, _ = create_input(ticker)
 
         # Load model checkpoint with global caching to prevent OOM / RAM spikes
-        global _cached_model, _cached_model_mtime
+        global _cached_model, _cached_model_mtime, _cached_max_seq_len
         model_path = "best_model.pth"
         if not os.path.exists(model_path):
             return {"available": False, "reason": "No trained model found."}

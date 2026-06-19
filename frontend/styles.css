@@ -114,6 +114,33 @@ input, select { font-family: inherit; }
   background: var(--bg-primary); border: 1px solid var(--border);
   color: var(--text-tertiary);
 }
+/* Ticker Autocomplete Dropdown */
+.ticker-search { position: relative; }
+.ticker-dropdown {
+  display: none; position: absolute; top: 100%; left: 0; right: 0;
+  margin-top: 4px; max-height: 260px; overflow-y: auto;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-md); z-index: 150;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.ticker-dropdown.active { display: block; }
+.ticker-dropdown-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; cursor: pointer;
+  transition: background var(--transition);
+}
+.ticker-dropdown-item:hover, .ticker-dropdown-item.selected {
+  background: var(--bg-tertiary);
+}
+.ticker-dropdown-item .ticker-symbol {
+  font-size: 12px; font-weight: 600; font-family: var(--font-mono);
+  color: var(--accent-text); letter-spacing: 0.5px;
+}
+.ticker-dropdown-item .ticker-name {
+  font-size: 11px; color: var(--text-tertiary);
+  text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 140px;
+}
 .btn-analyze {
   font-size: 12px; font-weight: 600; letter-spacing: 0.3px;
   padding: 6px 16px; border-radius: var(--radius-md);

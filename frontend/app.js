@@ -40,15 +40,53 @@ function initNavigation() {
   });
 }
 
-// ── Search ──
+// ── Search with Autocomplete ──
 function initSearch() {
   const input = $('#ticker-input');
+  const dropdown = $('#ticker-dropdown');
+  let debounceTimer = null;
+  let selectedIdx = -1;
+
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = input.value.trim();
+    if (!q) { dropdown.classList.remove('active'); return; }
+    debounceTimer = setTimeout(() => fetchSuggestions(q), 150);
+  });
+
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      state.ticker = input.value.trim().toUpperCase();
-      if (state.ticker) runAnalysis();
+    const items = dropdown.querySelectorAll('.ticker-dropdown-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectedIdx = Math.min(selectedIdx + 1, items.length - 1);
+      updateSelected(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectedIdx = Math.max(selectedIdx - 1, 0);
+      updateSelected(items);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedIdx >= 0 && items[selectedIdx]) {
+        pickTicker(items[selectedIdx].dataset.symbol);
+      } else {
+        state.ticker = input.value.trim().toUpperCase();
+        dropdown.classList.remove('active');
+        if (state.ticker) runAnalysis();
+      }
+    } else if (e.key === 'Escape') {
+      dropdown.classList.remove('active');
     }
   });
+
+  input.addEventListener('focus', () => {
+    const q = input.value.trim();
+    if (q) fetchSuggestions(q);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#ticker-search')) dropdown.classList.remove('active');
+  });
+
   // Global "/" shortcut
   document.addEventListener('keydown', (e) => {
     if (e.key === '/' && document.activeElement !== input) {
@@ -57,6 +95,37 @@ function initSearch() {
       input.select();
     }
   });
+
+  async function fetchSuggestions(q) {
+    try {
+      const res = await fetch(`${API_BASE}/market/tickers/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      selectedIdx = -1;
+      if (!data.length) { dropdown.classList.remove('active'); return; }
+      dropdown.innerHTML = data.slice(0, 8).map((t, i) =>
+        `<div class="ticker-dropdown-item" data-symbol="${t.symbol}">
+           <span class="ticker-symbol">${t.symbol}</span>
+           <span class="ticker-name">${t.name}</span>
+         </div>`
+      ).join('');
+      dropdown.classList.add('active');
+      dropdown.querySelectorAll('.ticker-dropdown-item').forEach(item => {
+        item.addEventListener('click', () => pickTicker(item.dataset.symbol));
+      });
+    } catch (e) { /* silent */ }
+  }
+
+  function pickTicker(symbol) {
+    input.value = symbol;
+    state.ticker = symbol;
+    dropdown.classList.remove('active');
+    runAnalysis();
+  }
+
+  function updateSelected(items) {
+    items.forEach((el, i) => el.classList.toggle('selected', i === selectedIdx));
+    if (items[selectedIdx]) items[selectedIdx].scrollIntoView({ block: 'nearest' });
+  }
 }
 
 // ── Actions ──
